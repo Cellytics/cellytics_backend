@@ -339,7 +339,8 @@ class FellowshipDashboard(BaseModel):
                 "fellowship_id": "uuid",
                 "fellowship_name": "Bamenda Central",
                 "location": "Bamenda",
-                "zone_id": "uuid",
+                "zone_id": "uuid",                # Python bytecode caches
+        
                 "total_cells": 35,
                 "cells_reported": 28,
                 "submission_rate_percent": 80,

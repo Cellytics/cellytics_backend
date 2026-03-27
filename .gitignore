@@ -1,1 +1,36 @@
-.env``
+__pycache__/
+                *.py[cod]
+                *$py.class
+                
+                # Virtual environment
+                venv/
+                .env
+                .env.*      # optional if you use .env.local etc
+                
+                # Editor/IDE files
+                .vscode/
+                .idea/
+                *.sublime-workspace
+                *.sublime-project
+                
+                # OS files
+                Thumbs.db
+                .DS_Store
+                desktop.ini
+
+                .exe
+                .bat
+                
+                # Python packaging/build artifacts
+                build/
+                dist/
+                *.egg-info/
+                *.egg
+                pip-wheel-metadata/
+                
+                # logs and temporary files
+                *.log
+                *.tmp
+                *.bak
+                *.swp
+                *.swo
