@@ -582,7 +582,9 @@ async def submit_report(
         # Calculate deadline
         week_start, week_end, deadline = calculate_week_boundaries(request.meeting_date)
         now = datetime.utcnow()
-        status_value = "SUBMITTED" if now <= deadline else "LATE"
+        status_value = "submitted" if now <= deadline else "late"
+
+        # status_value = "SUBMITTED" if now <= deadline else "LATE"
 
         # Calculate finance total
         finance_total = (
