@@ -1,9 +1,9 @@
 # routers/admin.py - Admin endpoints for setup and management
 
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime, time as time_type
+from datetime import time as time_type
 from uuid import UUID
 from typing import Optional
 import logging
@@ -15,47 +15,27 @@ from schemas import (
     FellowshipCreate, FellowshipUpdate, FellowshipResponse,
     SeniorCellCreate, SeniorCellUpdate, SeniorCellResponse,
     CellCreate, CellUpdate, CellResponse,
-    UserCreate, UserCreateResponse, UserUpdate, UserListResponse, UserRole
+    UserCreate, UserCreateResponse, UserUpdate
 )
-from auth import decode_token, hash_default_pin
+from auth import hash_default_pin
 from services.admin_service import AdminService
+from utils.security import (
+    ensure_cell_access,
+    ensure_fellowship_access,
+    ensure_senior_cell_access,
+    ensure_zone_access,
+    get_current_user,
+    require_fellowship_pastor_or_above,
+    require_system_admin,
+    require_zonal_admin_or_above,
+    scoped_cell_query,
+    scoped_fellowship_query,
+    scoped_senior_cell_query,
+    scoped_zone_query,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# HELPER: Get current user
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def get_current_user(
-    authorization: Optional[str] = Header(None),
-    session: AsyncSession = Depends(get_session)
-) -> User:
-    """Extract current user from JWT token"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No authorization header")
-
-    try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-            raise ValueError
-    except (ValueError, IndexError):
-        raise HTTPException(status_code=401, detail="Invalid auth header")
-
-    user_id = decode_token(token)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    result = await session.execute(
-        select(User).where(User.id == UUID(user_id), User.is_active == True)
-    )
-    user = result.scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
-    return user
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -64,26 +44,23 @@ async def get_current_user(
 
 def check_system_admin(user: User):
     """Only system_admin can use this endpoint"""
-    if user.role != "system_admin":
-        raise HTTPException(status_code=403, detail="Only system admin can perform this action")
+    require_system_admin(user)
 
 
 def check_zonal_admin(user: User):
     """Only zonal_admin or system_admin can use this endpoint"""
-    if user.role not in ["zonal_admin", "system_admin"]:
-        raise HTTPException(status_code=403, detail="Only zonal admin can perform this action")
+    require_zonal_admin_or_above(user)
 
 
 def check_fellowship_pastor(user: User):
     """Only fellowship_pastor or above can use this endpoint"""
-    if user.role not in ["fellowship_pastor", "zonal_admin", "system_admin"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
+    require_fellowship_pastor_or_above(user)
 
 
 def check_senior_cell_leader(user: User):
     """Only senior_cell_leader or above can use this endpoint"""
-    if user.role not in ["senior_cell_leader", "fellowship_pastor", "zonal_admin", "system_admin"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
+    from utils.security import require_senior_cell_leader_or_above
+    require_senior_cell_leader_or_above(user)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -133,6 +110,7 @@ async def get_zone(
     zone = await AdminService.get_zone_by_id(session, zone_id)
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
+    await ensure_zone_access(current_user, zone_id)
 
     return ZoneResponse(
         id=str(zone.id),
@@ -149,7 +127,7 @@ async def list_zones(
     current_user: User = Depends(get_current_user),
 ):
     """List all zones"""
-    result = await session.execute(select(Zone))
+    result = await session.execute(scoped_zone_query(select(Zone), current_user))
     zones = result.scalars().all()
 
     return [

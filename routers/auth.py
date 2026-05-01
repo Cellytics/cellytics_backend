@@ -45,6 +45,7 @@ async def login(
                 "senior_cell_id": str(user.senior_cell_id) if user.senior_cell_id else None,
                 "fellowship_id": str(user.fellowship_id) if user.fellowship_id else None,
                 "zone_id": str(user.zone_id) if user.zone_id else None,
+                "is_active": user.is_active,
             }
         )
  
