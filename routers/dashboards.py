@@ -1,57 +1,29 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime, date, timedelta
 from uuid import UUID
-from typing import Optional
  
 from database import get_session
-from models import User, Cell, CellReport, Zone, Fellowship, SeniorCell
-from auth import decode_token
+from models import User, Zone, Fellowship, SeniorCell
 from services.dashboard_service import DashboardService
+from utils.security import (
+    ensure_fellowship_access,
+    ensure_senior_cell_access,
+    ensure_zone_access,
+    get_current_user,
+)
  
 router = APIRouter()
- 
-async def get_current_user(
-    authorization: Optional[str] = Header(None),
-    session: AsyncSession = Depends(get_session)
-) -> User:
-    """Extract current user from JWT token"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No authorization header")
- 
-    try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-            raise ValueError
-    except (ValueError, IndexError):
-        raise HTTPException(status_code=401, detail="Invalid auth header")
- 
-    user_id = decode_token(token)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
- 
-    result = await session.execute(
-        select(User).where(User.id == UUID(user_id), User.is_active == True)
-    )
-    user = result.scalar_one_or_none()
- 
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
- 
-    return user
  
  
 @router.get("/dashboards/senior-cell/{senior_cell_id}")
 async def get_senior_cell_dashboard(
     senior_cell_id: UUID,
-    authorization: Optional[str] = Header(None),
     session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Senior Cell Leader dashboard"""
     try:
-        current_user = await get_current_user(authorization, session)
- 
         result = await session.execute(
             select(SeniorCell).where(SeniorCell.id == senior_cell_id)
         )
@@ -59,10 +31,7 @@ async def get_senior_cell_dashboard(
  
         if not senior_cell:
             raise HTTPException(status_code=404, detail="Senior cell not found")
- 
-        # Check access
-        if current_user.role == "senior_cell_leader" and current_user.senior_cell_id != senior_cell_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        await ensure_senior_cell_access(session, current_user, senior_cell_id)
  
         # Use service to build dashboard
         dashboard = await DashboardService.build_senior_cell_dashboard(
@@ -81,13 +50,11 @@ async def get_senior_cell_dashboard(
 @router.get("/dashboards/fellowship/{fellowship_id}")
 async def get_fellowship_dashboard(
     fellowship_id: UUID,
-    authorization: Optional[str] = Header(None),
     session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Fellowship Pastor dashboard"""
     try:
-        current_user = await get_current_user(authorization, session)
- 
         result = await session.execute(
             select(Fellowship).where(Fellowship.id == fellowship_id)
         )
@@ -95,9 +62,7 @@ async def get_fellowship_dashboard(
  
         if not fellowship:
             raise HTTPException(status_code=404, detail="Fellowship not found")
- 
-        if current_user.role == "fellowship_pastor" and current_user.fellowship_id != fellowship_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        await ensure_fellowship_access(session, current_user, fellowship_id)
  
         # Use service
         dashboard = await DashboardService.build_fellowship_dashboard(
@@ -116,13 +81,11 @@ async def get_fellowship_dashboard(
 @router.get("/dashboards/zone/{zone_id}")
 async def get_zone_dashboard(
     zone_id: UUID,
-    authorization: Optional[str] = Header(None),
     session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Zonal Admin dashboard"""
     try:
-        current_user = await get_current_user(authorization, session)
- 
         result = await session.execute(
             select(Zone).where(Zone.id == zone_id)
         )
@@ -130,9 +93,7 @@ async def get_zone_dashboard(
  
         if not zone:
             raise HTTPException(status_code=404, detail="Zone not found")
- 
-        if current_user.role == "zonal_admin" and current_user.zone_id != zone_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        await ensure_zone_access(current_user, zone_id)
  
         # Use service
         dashboard = await DashboardService.build_zone_dashboard(

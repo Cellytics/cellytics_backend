@@ -112,7 +112,7 @@ async def can_access_zone(user: User, zone_id: UUID) -> bool:
         return True
     if user.role in ZONE_ROLES:
         return user.zone_id == zone_id
-    return user.zone_id == zone_id
+    return False
 
 
 async def can_access_fellowship(
@@ -132,7 +132,7 @@ async def can_access_fellowship(
 
     if user.role in ZONE_ROLES:
         return user.zone_id == fellowship.zone_id
-    return user.zone_id == fellowship.zone_id or user.fellowship_id == fellowship_id
+    return False
 
 
 async def can_access_senior_cell(
@@ -153,7 +153,7 @@ async def can_access_senior_cell(
         return user.fellowship_id == fellowship.id
     if user.role in ZONE_ROLES:
         return user.zone_id == fellowship.zone_id
-    return user.fellowship_id == fellowship.id or user.zone_id == fellowship.zone_id
+    return False
 
 
 async def can_access_cell(session: AsyncSession, user: User, cell_id: UUID) -> bool:
