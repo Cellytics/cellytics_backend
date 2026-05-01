@@ -1,44 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from datetime import datetime
 from uuid import UUID
-from typing import Optional
  
 from database import get_session
 from models import User, Cell, Notification
-from auth import decode_token
+from utils.security import ensure_cell_access, get_current_user, require_roles
  
 router = APIRouter()
- 
-async def get_current_user(
-    authorization: Optional[str] = Header(None),
-    session: AsyncSession = Depends(get_session)
-) -> User:
-    """Extract current user from JWT token"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No authorization header")
- 
-    try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-            raise ValueError
-    except (ValueError, IndexError):
-        raise HTTPException(status_code=401, detail="Invalid auth header")
- 
-    user_id = decode_token(token)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
- 
-    result = await session.execute(
-        select(User).where(User.id == UUID(user_id), User.is_active == True)
-    )
-    user = result.scalar_one_or_none()
- 
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
- 
-    return user
  
  
 @router.post("/users/fcm-token")
@@ -71,8 +41,7 @@ async def send_nudge(
 ):
     """Send manual nudge/reminder to cell leader"""
     try:
-        if current_user.role not in ["fellowship_pastor", "zonal_admin", "system_admin"]:
-            raise HTTPException(status_code=403, detail="Permission denied")
+        require_roles(current_user, {"fellowship_pastor", "zonal_admin", "system_admin"})
  
         result = await session.execute(
             select(Cell).where(Cell.id == cell_id)
@@ -81,13 +50,24 @@ async def send_nudge(
  
         if not cell:
             raise HTTPException(status_code=404, detail="Cell not found")
+        await ensure_cell_access(session, current_user, cell_id)
+
+        if not cell.leader_id:
+            raise HTTPException(status_code=400, detail="Cell has no assigned leader")
+
+        result = await session.execute(
+            select(User).where(User.id == cell.leader_id, User.is_active == True)
+        )
+        leader = result.scalar_one_or_none()
+        if not leader:
+            raise HTTPException(status_code=404, detail="Cell leader not found")
  
         # Create notification
         notification = Notification(
-            user_id=cell.leader_id,
+            user_id=leader.id,
             message=message,
             type="manual_nudge",
-            fcm_token=cell.leader.fcm_token if cell.leader else None,
+            fcm_token=leader.fcm_token,
             is_sent=True,
             sent_at=datetime.utcnow(),
         )
@@ -97,7 +77,7 @@ async def send_nudge(
         return {
             "success": True,
             "cell_name": cell.name,
-            "leader_name": cell.leader.name if cell.leader else "Unknown",
+            "leader_name": leader.name,
             "message": message,
         }
  

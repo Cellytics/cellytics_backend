@@ -1,9 +1,9 @@
 # routers/admin.py - Admin endpoints for setup and management
 
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime, time as time_type
+from datetime import time as time_type
 from uuid import UUID
 from typing import Optional
 import logging
@@ -15,47 +15,28 @@ from schemas import (
     FellowshipCreate, FellowshipUpdate, FellowshipResponse,
     SeniorCellCreate, SeniorCellUpdate, SeniorCellResponse,
     CellCreate, CellUpdate, CellResponse,
-    UserCreate, UserCreateResponse, UserUpdate, UserListResponse, UserRole
+    UserCreate, UserCreateResponse, UserUpdate
 )
-from auth import decode_token, hash_default_pin
+from auth import hash_default_pin
 from services.admin_service import AdminService
+from utils.security import (
+    ensure_cell_access,
+    ensure_fellowship_access,
+    ensure_senior_cell_access,
+    ensure_zone_access,
+    get_current_user,
+    require_fellowship_pastor_or_above,
+    require_senior_cell_leader_or_above,
+    require_system_admin,
+    require_zonal_admin_or_above,
+    scoped_cell_query,
+    scoped_fellowship_query,
+    scoped_senior_cell_query,
+    scoped_zone_query,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# HELPER: Get current user
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def get_current_user(
-    authorization: Optional[str] = Header(None),
-    session: AsyncSession = Depends(get_session)
-) -> User:
-    """Extract current user from JWT token"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No authorization header")
-
-    try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-            raise ValueError
-    except (ValueError, IndexError):
-        raise HTTPException(status_code=401, detail="Invalid auth header")
-
-    user_id = decode_token(token)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    result = await session.execute(
-        select(User).where(User.id == UUID(user_id), User.is_active == True)
-    )
-    user = result.scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
-    return user
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -64,26 +45,22 @@ async def get_current_user(
 
 def check_system_admin(user: User):
     """Only system_admin can use this endpoint"""
-    if user.role != "system_admin":
-        raise HTTPException(status_code=403, detail="Only system admin can perform this action")
+    require_system_admin(user)
 
 
 def check_zonal_admin(user: User):
     """Only zonal_admin or system_admin can use this endpoint"""
-    if user.role not in ["zonal_admin", "system_admin"]:
-        raise HTTPException(status_code=403, detail="Only zonal admin can perform this action")
+    require_zonal_admin_or_above(user)
 
 
 def check_fellowship_pastor(user: User):
     """Only fellowship_pastor or above can use this endpoint"""
-    if user.role not in ["fellowship_pastor", "zonal_admin", "system_admin"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
+    require_fellowship_pastor_or_above(user)
 
 
 def check_senior_cell_leader(user: User):
     """Only senior_cell_leader or above can use this endpoint"""
-    if user.role not in ["senior_cell_leader", "fellowship_pastor", "zonal_admin", "system_admin"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
+    require_senior_cell_leader_or_above(user)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -133,6 +110,7 @@ async def get_zone(
     zone = await AdminService.get_zone_by_id(session, zone_id)
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
+    await ensure_zone_access(current_user, zone_id)
 
     return ZoneResponse(
         id=str(zone.id),
@@ -149,7 +127,7 @@ async def list_zones(
     current_user: User = Depends(get_current_user),
 ):
     """List all zones"""
-    result = await session.execute(select(Zone))
+    result = await session.execute(scoped_zone_query(select(Zone), current_user))
     zones = result.scalars().all()
 
     return [
@@ -283,11 +261,10 @@ async def list_fellowships(
         query = select(Fellowship)
 
         if zone_id:
+            await ensure_zone_access(current_user, zone_id)
             query = query.where(Fellowship.zone_id == zone_id)
 
-        # Zonal admin can only see fellowships in their zone
-        if current_user.role == "zonal_admin":
-            query = query.where(Fellowship.zone_id == current_user.zone_id)
+        query = scoped_fellowship_query(query, current_user)
 
         result = await session.execute(query)
         fellowships = result.scalars().all()
@@ -318,6 +295,7 @@ async def get_fellowship(
     fellowship = await AdminService.get_fellowship_by_id(session, fellowship_id)
     if not fellowship:
         raise HTTPException(status_code=404, detail="Fellowship not found")
+    await ensure_fellowship_access(session, current_user, fellowship_id)
 
     return FellowshipResponse(
         id=str(fellowship.id),
@@ -341,6 +319,7 @@ async def update_fellowship(
     fellowship = await AdminService.get_fellowship_by_id(session, fellowship_id)
     if not fellowship:
         raise HTTPException(status_code=404, detail="Fellowship not found")
+    await ensure_fellowship_access(session, current_user, fellowship_id)
 
     # Zonal admin can only update fellowships in their zone
     if current_user.role == "zonal_admin" and current_user.zone_id != fellowship.zone_id:
@@ -380,6 +359,7 @@ async def delete_fellowship(
     fellowship = await AdminService.get_fellowship_by_id(session, fellowship_id)
     if not fellowship:
         raise HTTPException(status_code=404, detail="Fellowship not found")
+    await ensure_fellowship_access(session, current_user, fellowship_id)
 
     if current_user.role == "zonal_admin" and current_user.zone_id != fellowship.zone_id:
         raise HTTPException(status_code=403, detail="Can only delete fellowships in your zone")
@@ -455,7 +435,10 @@ async def list_senior_cells(
         query = select(SeniorCell)
 
         if fellowship_id:
+            await ensure_fellowship_access(session, current_user, fellowship_id)
             query = query.where(SeniorCell.fellowship_id == fellowship_id)
+
+        query = scoped_senior_cell_query(query, current_user)
 
         result = await session.execute(query)
         senior_cells = result.scalars().all()
@@ -485,6 +468,7 @@ async def get_senior_cell(
     senior_cell = await AdminService.get_senior_cell_by_id(session, senior_cell_id)
     if not senior_cell:
         raise HTTPException(status_code=404, detail="Senior cell not found")
+    await ensure_senior_cell_access(session, current_user, senior_cell_id)
 
     return SeniorCellResponse(
         id=str(senior_cell.id),
@@ -507,6 +491,7 @@ async def update_senior_cell(
     senior_cell = await AdminService.get_senior_cell_by_id(session, senior_cell_id)
     if not senior_cell:
         raise HTTPException(status_code=404, detail="Senior cell not found")
+    await ensure_senior_cell_access(session, current_user, senior_cell_id)
 
     try:
         if request.name:
@@ -539,6 +524,7 @@ async def delete_senior_cell(
     senior_cell = await AdminService.get_senior_cell_by_id(session, senior_cell_id)
     if not senior_cell:
         raise HTTPException(status_code=404, detail="Senior cell not found")
+    await ensure_senior_cell_access(session, current_user, senior_cell_id)
 
     try:
         await session.delete(senior_cell)
@@ -625,7 +611,10 @@ async def list_cells(
         query = select(Cell)
 
         if senior_cell_id:
+            await ensure_senior_cell_access(session, current_user, senior_cell_id)
             query = query.where(Cell.senior_cell_id == senior_cell_id)
+
+        query = scoped_cell_query(query, current_user)
 
         result = await session.execute(query)
         cells = result.scalars().all()
@@ -657,6 +646,7 @@ async def get_cell(
     cell = await AdminService.get_cell_by_id(session, cell_id)
     if not cell:
         raise HTTPException(status_code=404, detail="Cell not found")
+    await ensure_cell_access(session, current_user, cell_id)
 
     return CellResponse(
         id=str(cell.id),
@@ -681,6 +671,7 @@ async def update_cell(
     cell = await AdminService.get_cell_by_id(session, cell_id)
     if not cell:
         raise HTTPException(status_code=404, detail="Cell not found")
+    await ensure_cell_access(session, current_user, cell_id)
 
     try:
         if request.name:
@@ -688,8 +679,11 @@ async def update_cell(
         if request.default_meeting_day:
             cell.default_meeting_day = request.default_meeting_day
         if request.meeting_time:
-            h, m = map(int, request.meeting_time.split(":"))
-            cell.meeting_time = time_type(h, m)
+            try:
+                h, m = map(int, request.meeting_time.split(":"))
+                cell.meeting_time = time_type(h, m)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid time format")
 
         await session.commit()
         await session.refresh(cell)
@@ -703,6 +697,9 @@ async def update_cell(
             created_at=cell.created_at,
         )
 
+    except HTTPException:
+        await session.rollback()
+        raise
     except Exception as e:
         await session.rollback()
         raise HTTPException(status_code=500, detail="Cell update failed")
@@ -720,6 +717,7 @@ async def delete_cell(
     cell = await AdminService.get_cell_by_id(session, cell_id)
     if not cell:
         raise HTTPException(status_code=404, detail="Cell not found")
+    await ensure_cell_access(session, current_user, cell_id)
 
     try:
         await session.delete(cell)
@@ -749,37 +747,52 @@ async def create_user(
         if await AdminService.phone_exists(session, request.phone):
             raise HTTPException(status_code=409, detail="Phone number already registered")
 
+        role_value = request.role.value
+        zone_id = request.zone_id
+        fellowship_id = request.fellowship_id
+        senior_cell_id = request.senior_cell_id
+        cell_id = request.cell_id
+
         # Validate hierarchy based on role
-        if request.role == "zonal_admin":
-            zone = await AdminService.get_zone_by_id(session, request.zone_id)
+        if role_value in {"zonal_admin", "zonal_pastor"}:
+            zone = await AdminService.get_zone_by_id(session, zone_id)
             if not zone:
                 raise HTTPException(status_code=404, detail="Zone not found")
 
-        elif request.role == "fellowship_pastor":
-            fellowship = await AdminService.get_fellowship_by_id(session, request.fellowship_id)
+        elif role_value == "fellowship_pastor":
+            fellowship = await AdminService.get_fellowship_by_id(session, fellowship_id)
             if not fellowship:
                 raise HTTPException(status_code=404, detail="Fellowship not found")
+            zone_id = fellowship.zone_id
 
-        elif request.role == "senior_cell_leader":
-            senior_cell = await AdminService.get_senior_cell_by_id(session, request.senior_cell_id)
+        elif role_value == "senior_cell_leader":
+            senior_cell = await AdminService.get_senior_cell_by_id(session, senior_cell_id)
             if not senior_cell:
                 raise HTTPException(status_code=404, detail="Senior cell not found")
+            fellowship = await AdminService.get_fellowship_by_id(session, senior_cell.fellowship_id)
+            fellowship_id = senior_cell.fellowship_id
+            zone_id = fellowship.zone_id if fellowship else None
 
-        elif request.role == "cell_leader":
-            cell = await AdminService.get_cell_by_id(session, request.cell_id)
+        elif role_value == "cell_leader":
+            cell = await AdminService.get_cell_by_id(session, cell_id)
             if not cell:
                 raise HTTPException(status_code=404, detail="Cell not found")
+            senior_cell = await AdminService.get_senior_cell_by_id(session, cell.senior_cell_id)
+            fellowship = await AdminService.get_fellowship_by_id(session, senior_cell.fellowship_id) if senior_cell else None
+            senior_cell_id = cell.senior_cell_id
+            fellowship_id = senior_cell.fellowship_id if senior_cell else None
+            zone_id = fellowship.zone_id if fellowship else None
 
         # Create user
         new_user = User(
             phone=request.phone,
             name=request.name,
             pin_hash=hash_default_pin(),  # 123456
-            role=request.role,
-            zone_id=request.zone_id,
-            fellowship_id=request.fellowship_id,
-            senior_cell_id=request.senior_cell_id,
-            cell_id=request.cell_id,
+            role=role_value,
+            zone_id=zone_id,
+            fellowship_id=fellowship_id,
+            senior_cell_id=senior_cell_id,
+            cell_id=cell_id,
             is_active=True,
         )
 

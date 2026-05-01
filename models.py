@@ -40,10 +40,12 @@ class Zone(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False)
-    region_id = Column(UUID(as_uuid=True), ForeignKey("regions.id", ondelete="CASCADE"), nullable=False)
+    region_id = Column(UUID(as_uuid=True), ForeignKey("regions.id", ondelete="CASCADE"), nullable=True)
     zonal_pastor_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     zonal_admin_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    location = Column(String(200), nullable=True)  # ← ADD THIS LINE
+    description = Column(Text, nullable=True) 
 
     __table_args__ = (UniqueConstraint('name', 'region_id', name='uq_zone_name_region'),)
 

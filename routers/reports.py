@@ -1,46 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
-from datetime import datetime, date
+from datetime import date
 from uuid import UUID
 from typing import Optional
  
 from database import get_session
 from models import User, Cell, CellReport
 from schemas import CellReportSubmit, CellReportResponse
-from auth import decode_token
 from services.report_service import ReportService
+from utils.security import (
+    ensure_cell_access,
+    ensure_report_access,
+    get_current_user,
+    require_roles,
+    scoped_report_query,
+)
  
 router = APIRouter()
- 
-async def get_current_user(
-    authorization: Optional[str] = Header(None),
-    session: AsyncSession = Depends(get_session)
-) -> User:
-    """Extract current user from JWT token"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No authorization header")
- 
-    try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-            raise ValueError
-    except (ValueError, IndexError):
-        raise HTTPException(status_code=401, detail="Invalid auth header")
- 
-    user_id = decode_token(token)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
- 
-    result = await session.execute(
-        select(User).where(User.id == UUID(user_id), User.is_active == True)
-    )
-    user = result.scalar_one_or_none()
- 
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
- 
-    return user
  
  
 @router.post("/reports/submit", response_model=CellReportResponse)
@@ -51,18 +28,17 @@ async def submit_report(
 ):
     """Submit a cell report"""
     try:
-        # Permission check
-        if current_user.role == "cell_leader":
-            if current_user.cell_id != request.cell_id:
-                raise HTTPException(status_code=403, detail="Can only submit for your cell")
-        elif current_user.role not in ["senior_cell_leader", "fellowship_pastor", "zonal_admin", "system_admin"]:
-            raise HTTPException(status_code=403, detail="Permission denied")
+        require_roles(
+            current_user,
+            {"cell_leader", "senior_cell_leader", "fellowship_pastor", "zonal_admin", "system_admin"},
+        )
  
         # Verify cell exists
         result = await session.execute(select(Cell).where(Cell.id == request.cell_id))
         cell = result.scalar_one_or_none()
         if not cell:
             raise HTTPException(status_code=404, detail="Cell not found")
+        await ensure_cell_access(session, current_user, request.cell_id)
  
         # Check for duplicate
         result = await session.execute(
@@ -82,8 +58,8 @@ async def submit_report(
         )
  
         return CellReportResponse(
-            id=report.id,
-            cell_id=report.cell_id,
+            id=str(report.id),
+            cell_id=str(report.cell_id),
             status=report.status,
             submitted_at=report.submitted_at,
             submission_deadline=report.submission_deadline,
@@ -111,6 +87,7 @@ async def get_report(
  
         if not report:
             raise HTTPException(status_code=404, detail="Report not found")
+        await ensure_report_access(session, current_user, report_id)
  
         return report
  
@@ -135,11 +112,14 @@ async def list_reports(
         query = select(CellReport)
  
         if cell_id:
+            await ensure_cell_access(session, current_user, cell_id)
             query = query.where(CellReport.cell_id == cell_id)
         if status:
             query = query.where(CellReport.status == status)
         if week_start:
             query = query.where(CellReport.week_start_date == week_start)
+
+        query = scoped_report_query(query, current_user)
  
         query = query.order_by(desc(CellReport.submitted_at)).offset(offset).limit(limit)
  
