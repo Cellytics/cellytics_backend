@@ -2,11 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
+import logging
  
 from database import get_session
 from models import User
 from schemas import LoginRequest, LoginResponse
 from auth import verify_pin, create_access_token
+ 
+logger = logging.getLogger(__name__)
  
 router = APIRouter()
  
@@ -17,12 +20,25 @@ async def login(
 ):
     """Login with phone and PIN. Returns JWT token."""
     try:
+        logger.info(f"Login attempt for phone: {request.phone}")
+        
         result = await session.execute(
             select(User).where(User.phone == request.phone, User.is_active == True)
         )
         user = result.scalar_one_or_none()
  
-        if not user or not verify_pin(request.pin, user.pin_hash):
+        if not user:
+            logger.warning(f"User not found for phone: {request.phone}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid phone or PIN",
+            )
+ 
+        pin_valid = verify_pin(request.pin, user.pin_hash)
+        logger.info(f"PIN verification for user {user.name}: {pin_valid}")
+        
+        if not pin_valid:
+            logger.warning(f"Invalid PIN for user: {user.name}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid phone or PIN",
