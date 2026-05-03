@@ -43,8 +43,13 @@ class LoginRequest(BaseModel):
             raise ValueError("Phone must contain only digits after +")
         return v
 
-    @validator("pin")
+    @validator("pin", pre=True)
     def validate_pin(cls, v):
+        # Handle both string and int inputs
+        if isinstance(v, int):
+            v = str(v)
+        if not isinstance(v, str):
+            raise ValueError("PIN must be a string or number")
         if len(v) != 6 or not v.isdigit():
             raise ValueError("PIN must be 6 digits")
         return v
