@@ -4,10 +4,11 @@ from sqlalchemy import select
 from uuid import UUID
  
 from database import get_session
-from models import User, Zone, Fellowship, SeniorCell
+from models import User, Zone, Fellowship, SeniorCell, Cell
 from services.dashboard_service import DashboardService
 from utils.security import (
     ensure_fellowship_access,
+    ensure_cell_access,
     ensure_senior_cell_access,
     ensure_zone_access,
     get_current_user,
@@ -16,6 +17,34 @@ from utils.security import (
 router = APIRouter()
  
  
+@router.get("/dashboards/cell/{cell_id}")
+async def get_cell_dashboard(
+    cell_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Dashboard for a normal cell leader."""
+    try:
+        result = await session.execute(select(Cell).where(Cell.id == cell_id))
+        cell = result.scalar_one_or_none()
+
+        if not cell:
+            raise HTTPException(status_code=404, detail="Cell not found")
+        await ensure_cell_access(session, current_user, cell_id)
+
+        dashboard = await DashboardService.build_cell_dashboard(
+            session=session,
+            cell_id=cell_id
+        )
+
+        return dashboard
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to fetch dashboard")
+
+
 @router.get("/dashboards/senior-cell/{senior_cell_id}")
 async def get_senior_cell_dashboard(
     senior_cell_id: UUID,
