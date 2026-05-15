@@ -1,4 +1,4 @@
-# CellTrack Backend Documentation
+# Cellytics Backend Documentation
 
 ## Table of Contents
 
