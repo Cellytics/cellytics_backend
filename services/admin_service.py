@@ -10,7 +10,7 @@ from auth import hash_default_pin
 
 class AdminService:
     """Business logic for admin hierarchy and user management"""
-
+###
     @staticmethod
     async def validate_zone_exists(session: AsyncSession, zone_id: UUID) -> bool:
         """Check if zone exists"""

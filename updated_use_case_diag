@@ -1,0 +1,1027 @@
+# 🎨 BLW Zone B Cell Reporting System - UPDATED UML Design Documents
+
+## Updated Requirements Confirmed ✅
+
+### **Hierarchy Clarification**:
+```
+Region (e.g., "East & Central Africa")
+  └─ Zone (e.g., "Zone B" - led by Zonal Pastor)
+      └─ Fellowship (e.g., "Bamenda Central" - led by Fellowship Pastor)
+          └─ Senior Cell (led by Senior Cell Leader)
+              └─ Cell (led by Cell Leader)
+```
+
+### **Role Clarifications**:
+1. **Zonal Pastor**: The top leader for the zone, oversees all fellowships
+2. **Zonal Admin**: Coordinator role (data management), sees same data as Zonal Pastor
+3. **Fellowship Pastor**: Leads a specific fellowship under the zone
+4. **Senior Cell Leader**: Leads a senior cell, has a name
+5. **Cell Leader**: Leads a cell, has a name
+
+### **Meeting Day Logic**:
+- **Default**: Monday
+- **Flexible**: Can be moved to another day within the week
+- **Submission Deadline**: Latest by Sunday 9am before service
+- **Report Period**: Weekly (one report per week per cell)
+
+### **New Fields**:
+- `Fellowship.location` - Geographic location
+- `Region` entity added to hierarchy
+
+---
+
+# 📐 PART 1: UPDATED USE CASE DIAGRAM
+
+```plantuml
+@startuml BLW_Use_Case_Diagram_v2
+!theme plain
+skinparam packageStyle rectangle
+
+left to right direction
+
+actor "Cell Leader" as CL
+actor "Senior Cell Leader" as SCL
+actor "Fellowship Pastor" as FP
+actor "Zonal Pastor" as ZP
+actor "Zonal Admin" as ZA
+actor "System Admin" as SA
+
+rectangle "BLW Cell Reporting System" {
+  
+  package "Authentication & User Management" {
+    usecase "Login with PIN" as UC1
+    usecase "View Profile" as UC2
+    usecase "Create User Account" as UC3
+    usecase "Assign User Roles" as UC4
+    usecase "Manage Assignments" as UC5
+  }
+  
+  package "Cell Report Submission" {
+    usecase "Fill Cell Report Form" as UC6
+    usecase "Upload Report Photos (1-2)" as UC7
+    usecase "Save Draft Report" as UC8
+    usecase "Submit Report (Online)" as UC9
+    usecase "Submit Report (Offline)" as UC10
+    usecase "Sync Offline Reports" as UC11
+    usecase "View Own Report History" as UC12
+    usecase "Edit Draft Report" as UC13
+  }
+  
+  package "Dashboard & Analytics" {
+    usecase "View Senior Cell Dashboard" as UC14
+    usecase "View Fellowship Dashboard" as UC15
+    usecase "View Zonal Dashboard" as UC16
+    usecase "View Cell Report Details" as UC17
+    usecase "Export Reports (CSV/PDF)" as UC18
+    usecase "View Attendance Trends" as UC19
+    usecase "Identify Struggling Cells" as UC20
+  }
+  
+  package "Notifications" {
+    usecase "Send Manual Reminder" as UC21
+    usecase "Receive Push Notification" as UC22
+    usecase "View Notification History" as UC23
+  }
+  
+  package "System Administration" {
+    usecase "Manage Regions" as UC24
+    usecase "Manage Zones" as UC25
+    usecase "Manage Fellowships" as UC26
+    usecase "Manage Senior Cells" as UC27
+    usecase "Manage Cells" as UC28
+    usecase "View System Logs" as UC29
+  }
+}
+
+' Cell Leader use cases
+CL --> UC1
+CL --> UC2
+CL --> UC6
+CL --> UC7
+CL --> UC8
+CL --> UC9
+CL --> UC10
+CL --> UC11
+CL --> UC12
+CL --> UC13
+CL --> UC22
+
+' Senior Cell Leader use cases
+SCL --> UC1
+SCL --> UC2
+SCL --> UC6
+SCL --> UC7
+SCL --> UC8
+SCL --> UC9
+SCL --> UC10
+SCL --> UC11
+SCL --> UC12
+SCL --> UC13
+SCL --> UC14
+SCL --> UC17
+SCL --> UC21
+SCL --> UC22
+
+' Fellowship Pastor use cases
+FP --> UC1
+FP --> UC2
+FP --> UC15
+FP --> UC17
+FP --> UC18
+FP --> UC19
+FP --> UC20
+FP --> UC21
+FP --> UC22
+
+' Zonal Pastor use cases (same as Zonal Admin)
+ZP --> UC1
+ZP --> UC2
+ZP --> UC16
+ZP --> UC17
+ZP --> UC18
+ZP --> UC19
+ZP --> UC20
+ZP --> UC22
+
+' Zonal Admin use cases (same as Zonal Pastor)
+ZA --> UC1
+ZA --> UC2
+ZA --> UC16
+ZA --> UC17
+ZA --> UC18
+ZA --> UC19
+ZA --> UC20
+ZA --> UC22
+
+' System Admin use cases
+SA --> UC1
+SA --> UC3
+SA --> UC4
+SA --> UC5
+SA --> UC24
+SA --> UC25
+SA --> UC26
+SA --> UC27
+SA --> UC28
+SA --> UC29
+
+' Include/Extend relationships
+UC9 ..> UC11 : <<include>>
+UC10 ..> UC11 : <<include>>
+UC6 ..> UC7 : <<include>>
+UC21 ..> UC22 : <<triggers>>
+
+note right of UC10
+  Offline submissions are queued
+  locally and synced when online.
+  Deadline: Sunday 9am.
+end note
+
+note right of UC7
+  1-2 photos stored in 
+  Appwrite bucket
+end note
+
+note bottom of UC22
+  FCM push notifications
+  sent from FastAPI backend
+end note
+
+note left of ZP
+  Zonal Pastor and Zonal Admin
+  see identical dashboards
+  (same permissions)
+end note
+
+note bottom of UC6
+  Report period: Weekly
+  Default meeting day: Monday
+  Can be rescheduled within week
+  Must submit by Sunday 9am
+end note
+
+@enduml
+```
+
+---
+
+# 🗂️ PART 2: UPDATED CLASS DIAGRAM
+
+```plantuml
+@startuml BLW_Class_Diagram_v2
+!theme plain
+skinparam linetype ortho
+
+' Enums
+enum Role {
+  CELL_LEADER
+  SENIOR_CELL_LEADER
+  FELLOWSHIP_PASTOR
+  ZONAL_PASTOR
+  ZONAL_ADMIN
+  SYSTEM_ADMIN
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  LATE
+  OVERDUE
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum NotificationType {
+  MEETING_REMINDER
+  SUBMISSION_REMINDER
+  LATE_ALERT
+  OVERDUE_ALERT
+  MANUAL_NUDGE
+}
+
+' Main entities
+class User {
+  +UUID id
+  +String phone {unique}
+  +String name
+  +String pinHash
+  +Role role
+  +UUID cellId {nullable}
+  +UUID seniorCellId {nullable}
+  +UUID fellowshipId {nullable}
+  +UUID zoneId {nullable}
+  +String fcmToken {nullable}
+  +Boolean isActive
+  +DateTime createdAt
+  +DateTime lastLogin {nullable}
+  --
+  +login(phone, pin): Token
+  +updateLastLogin()
+  +deactivate()
+  +updateFcmToken(token)
+}
+
+class Region {
+  +UUID id
+  +String name
+  +String description {nullable}
+  +DateTime createdAt
+  --
+  +getZones(): List<Zone>
+  +getRegionStats(): Stats
+}
+
+class Zone {
+  +UUID id
+  +String name
+  +UUID regionId
+  +UUID zonalPastorId {nullable}
+  +UUID zonalAdminId {nullable}
+  +DateTime createdAt
+  --
+  +getFellowships(): List<Fellowship>
+  +getZoneStats(): Stats
+  +getSubmissionRate(): String
+}
+
+class Fellowship {
+  +UUID id
+  +String name
+  +String location
+  +UUID zoneId
+  +UUID pastorId {nullable}
+  +DateTime createdAt
+  --
+  +getSeniorCells(): List<SeniorCell>
+  +getFellowshipStats(): Stats
+  +getSubmissionRate(): String
+}
+
+class SeniorCell {
+  +UUID id
+  +String name
+  +UUID fellowshipId
+  +UUID leaderId {nullable}
+  +String leaderName
+  +DateTime createdAt
+  --
+  +getCells(): List<Cell>
+  +getSeniorCellStats(): Stats
+  +getSubmissionRate(): String
+}
+
+class Cell {
+  +UUID id
+  +String name
+  +UUID seniorCellId
+  +UUID leaderId {nullable}
+  +String leaderName
+  +DayOfWeek defaultMeetingDay
+  +DayOfWeek actualMeetingDay {nullable}
+  +Time meetingTime
+  +Boolean isActive
+  +DateTime createdAt
+  --
+  +getReports(startDate, endDate): List<CellReport>
+  +getLastReportDate(): Date
+  +getSubmissionStatus(): ReportStatus
+  +updateMeetingDay(newDay)
+  +isReportOverdue(): Boolean
+}
+
+class CellReport {
+  +UUID id
+  +UUID cellId
+  +UUID submittedBy
+  +Date meetingDate
+  +Date weekStartDate
+  +Date weekEndDate
+  +DayOfWeek actualMeetingDay
+  +String meetingWeek
+  +String meetingType
+  +Integer meetingDuration
+  +JSON bibleClassTeachers
+  +JSON activities
+  +Integer firstTimers
+  +Integer numberSaved
+  +Integer filledHolyGhost
+  +Integer totalAttendance
+  +Integer newMembers
+  +Integer soulsRetained
+  +Integer soulsWon
+  +Integer soulsOnTracker
+  +Decimal financeOblation
+  +Decimal financeOfferings
+  +Decimal financeTithes
+  +Decimal financeThanksgiving
+  +Decimal financeSeed
+  +Decimal financePartnership
+  +Decimal financeFirstFruits
+  +Decimal financeTotal {computed}
+  +String financeCollectedBy
+  +Text testimonies
+  +Text monthlyPlans
+  +Text challenges
+  +Text pastorsRemarks {nullable}
+  +Text otherInfo {nullable}
+  +JSON soulWinningRecords
+  +JSON photoUrls
+  +ReportStatus status
+  +DateTime submittedAt
+  +DateTime submissionDeadline
+  +Boolean syncedFromOffline
+  +DateTime createdAt
+  +DateTime updatedAt
+  --
+  +calculateFinanceTotal(): Decimal
+  +markAsLate()
+  +markAsOverdue()
+  +isSubmittedOnTime(): Boolean
+  +uploadPhotos(photos): List<String>
+  +calculateDeadline(): DateTime
+}
+
+class ReportPhoto {
+  +UUID id
+  +UUID reportId
+  +String photoUrl
+  +String bucketPath
+  +Integer fileSize
+  +DateTime uploadedAt
+  --
+  +deleteFromBucket()
+}
+
+class SyncQueue {
+  +UUID id
+  +UUID userId {nullable}
+  +JSON reportData
+  +Integer retryCount
+  +Text lastError {nullable}
+  +DateTime createdAt
+  --
+  +retry()
+  +markAsProcessed()
+  +incrementRetryCount()
+}
+
+class Notification {
+  +UUID id
+  +UUID userId
+  +String message
+  +NotificationType type
+  +String fcmToken {nullable}
+  +String fcmMessageId {nullable}
+  +Boolean isRead
+  +Boolean isSent
+  +DateTime sentAt {nullable}
+  +DateTime createdAt
+  --
+  +markAsRead()
+  +send()
+}
+
+' Value Objects
+class SoulWinningRecord {
+  +String name
+  +String phone
+  +Boolean isFirstTimer
+  +Date followUpDate
+  +String response
+}
+
+class Activity {
+  +Integer duration
+  +String handledBy {nullable}
+}
+
+class Stats {
+  +Integer totalAttendance
+  +Integer soulsWon
+  +Integer firstTimers
+  +Decimal totalFinances
+  +String submissionRate
+  +Integer onTimeSubmissions
+  +Integer lateSubmissions
+  +Integer overdueReports
+}
+
+' Relationships
+Region "1" -- "0..*" Zone : contains
+Zone "1" -- "0..*" Fellowship : contains
+Fellowship "1" -- "0..*" SeniorCell : contains
+SeniorCell "1" -- "0..*" Cell : contains
+Cell "1" -- "0..*" CellReport : has
+CellReport "1" -- "0..2" ReportPhoto : includes
+
+User "0..1" -- "0..*" Cell : leads
+User "0..1" -- "0..*" SeniorCell : leads
+User "0..1" -- "0..*" Fellowship : pastors
+User "0..1" -- "0..*" Zone : administers
+User "1" -- "0..*" CellReport : submits
+User "1" -- "0..*" Notification : receives
+User "1" -- "0..*" SyncQueue : owns
+
+CellReport *-- "0..*" SoulWinningRecord : contains
+CellReport *-- "9" Activity : contains
+
+note right of CellReport::submissionDeadline
+  Calculated as: 
+  Sunday 9am of the week 
+  the meeting occurred.
+  
+  Status changes:
+  - SUBMITTED: Before deadline
+  - LATE: After deadline
+  - OVERDUE: Not submitted by deadline
+end note
+
+note right of Cell::defaultMeetingDay
+  Default: Monday
+  Can be changed to another day
+  within the week if needed.
+  
+  actualMeetingDay tracks when
+  the meeting actually occurred.
+end note
+
+note right of Zone
+  Both Zonal Pastor and 
+  Zonal Admin have full
+  access to zone data.
+end note
+
+note right of Fellowship::location
+  Geographic location
+  e.g., "Bamenda Central",
+  "University of Buea"
+end note
+
+note left of SeniorCell::leaderName
+  Denormalized for quick access.
+  Also stored in User table.
+end note
+
+note left of Cell::leaderName
+  Denormalized for quick access.
+  Also stored in User table.
+end note
+
+@enduml
+```
+
+---
+
+# 🗄️ PART 3: UPDATED ENTITY-RELATIONSHIP DIAGRAM
+
+```plantuml
+@startuml BLW_ER_Diagram_v2
+!theme plain
+
+' Entities
+entity "regions" as regions {
+  * id : UUID <<PK>>
+  --
+  * name : VARCHAR(100)
+  description : TEXT
+  created_at : TIMESTAMPTZ
+}
+
+entity "zones" as zones {
+  * id : UUID <<PK>>
+  --
+  * name : VARCHAR(100)
+  * region_id : UUID <<FK>>
+  zonal_pastor_id : UUID <<FK>>
+  zonal_admin_id : UUID <<FK>>
+  created_at : TIMESTAMPTZ
+}
+
+entity "fellowships" as fellowships {
+  * id : UUID <<PK>>
+  --
+  * name : VARCHAR(100)
+  * location : VARCHAR(200)
+  * zone_id : UUID <<FK>>
+  pastor_id : UUID <<FK>>
+  created_at : TIMESTAMPTZ
+}
+
+entity "senior_cells" as senior_cells {
+  * id : UUID <<PK>>
+  --
+  * name : VARCHAR(100)
+  * fellowship_id : UUID <<FK>>
+  leader_id : UUID <<FK>>
+  leader_name : VARCHAR(100)
+  created_at : TIMESTAMPTZ
+}
+
+entity "cells" as cells {
+  * id : UUID <<PK>>
+  --
+  * name : VARCHAR(100)
+  * senior_cell_id : UUID <<FK>>
+  leader_id : UUID <<FK>>
+  leader_name : VARCHAR(100)
+  default_meeting_day : ENUM
+  actual_meeting_day : ENUM
+  meeting_time : TIME
+  is_active : BOOLEAN
+  created_at : TIMESTAMPTZ
+}
+
+entity "users" as users {
+  * id : UUID <<PK>>
+  --
+  * phone : VARCHAR(20) <<UNIQUE>>
+  * name : VARCHAR(100)
+  * pin_hash : VARCHAR(255)
+  * role : ENUM
+  cell_id : UUID <<FK>>
+  senior_cell_id : UUID <<FK>>
+  fellowship_id : UUID <<FK>>
+  zone_id : UUID <<FK>>
+  fcm_token : VARCHAR(255)
+  is_active : BOOLEAN
+  created_at : TIMESTAMPTZ
+  last_login : TIMESTAMPTZ
+}
+
+entity "cell_reports" as reports {
+  * id : UUID <<PK>>
+  --
+  * cell_id : UUID <<FK>>
+  * submitted_by : UUID <<FK>>
+  * meeting_date : DATE
+  * week_start_date : DATE
+  * week_end_date : DATE
+  actual_meeting_day : ENUM
+  meeting_week : VARCHAR(10)
+  meeting_type : VARCHAR(50)
+  meeting_duration : INTEGER
+  bible_class_teachers : JSONB
+  activities : JSONB
+  first_timers : INTEGER
+  number_saved : INTEGER
+  filled_holy_ghost : INTEGER
+  total_attendance : INTEGER
+  new_members : INTEGER
+  souls_retained : INTEGER
+  souls_won : INTEGER
+  souls_on_tracker : INTEGER
+  finance_oblation : DECIMAL(12,2)
+  finance_offerings : DECIMAL(12,2)
+  finance_tithes : DECIMAL(12,2)
+  finance_thanksgiving : DECIMAL(12,2)
+  finance_seed : DECIMAL(12,2)
+  finance_partnership : DECIMAL(12,2)
+  finance_first_fruits : DECIMAL(12,2)
+  finance_total : DECIMAL(12,2) <<COMPUTED>>
+  finance_collected_by : VARCHAR(100)
+  testimonies : TEXT
+  monthly_plans : TEXT
+  challenges : TEXT
+  pastors_remarks : TEXT
+  other_info : TEXT
+  soul_winning_records : JSONB
+  photo_urls : JSONB
+  status : ENUM
+  submitted_at : TIMESTAMPTZ
+  submission_deadline : TIMESTAMPTZ
+  synced_from_offline : BOOLEAN
+  created_at : TIMESTAMPTZ
+  updated_at : TIMESTAMPTZ
+  --
+  <<CONSTRAINT>> unique_cell_week(cell_id, week_start_date)
+}
+
+entity "report_photos" as photos {
+  * id : UUID <<PK>>
+  --
+  * report_id : UUID <<FK>>
+  * photo_url : VARCHAR(500)
+  * bucket_path : VARCHAR(500)
+  file_size : INTEGER
+  uploaded_at : TIMESTAMPTZ
+}
+
+entity "sync_queue" as sync_queue {
+  * id : UUID <<PK>>
+  --
+  user_id : UUID <<FK>>
+  * report_data : JSONB
+  retry_count : INTEGER
+  last_error : TEXT
+  created_at : TIMESTAMPTZ
+}
+
+entity "notifications" as notifications {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  * message : TEXT
+  * type : ENUM
+  fcm_token : VARCHAR(255)
+  fcm_message_id : VARCHAR(255)
+  is_read : BOOLEAN
+  is_sent : BOOLEAN
+  sent_at : TIMESTAMPTZ
+  created_at : TIMESTAMPTZ
+}
+
+' Relationships
+regions ||--o{ zones : "contains"
+zones ||--o{ fellowships : "contains"
+fellowships ||--o{ senior_cells : "contains"
+senior_cells ||--o{ cells : "contains"
+
+users ||--o{ cells : "leads"
+users ||--o{ senior_cells : "leads"
+users ||--o{ fellowships : "pastors"
+users ||--o{ zones : "administers as\nzonal_pastor or\nzonal_admin"
+users ||--o{ reports : "submits"
+users ||--o{ sync_queue : "owns"
+users ||--o{ notifications : "receives"
+
+cells ||--o{ reports : "has"
+reports ||--o{ photos : "includes"
+
+note right of reports::submission_deadline
+  Calculated as:
+  Sunday 9am of the week
+  the meeting occurred.
+  
+  Example:
+  Meeting on Mon Mar 10
+  → Deadline: Sun Mar 16, 9am
+  
+  Status logic:
+  - SUBMITTED (on time)
+  - LATE (after deadline)
+  - OVERDUE (not submitted)
+end note
+
+note right of cells::default_meeting_day
+  Default: MONDAY
+  
+  Can be changed during week
+  if circumstances require.
+  
+  actual_meeting_day records
+  when meeting actually happened.
+end note
+
+note top of zones
+  Zonal Pastor: Leads the zone
+  Zonal Admin: Coordinates data
+  
+  Both see identical dashboards.
+end note
+
+note right of fellowships::location
+  Geographic location of
+  the fellowship.
+  
+  Examples:
+  - "Bamenda Central"
+  - "University of Buea"
+  - "Douala Main"
+end note
+
+note bottom of senior_cells::leader_name
+  Denormalized from users.name
+  for query performance.
+  
+  Updated via trigger when
+  users.name changes.
+end note
+
+note bottom of cells::leader_name
+  Denormalized from users.name
+  for query performance.
+  
+  Updated via trigger when
+  users.name changes.
+end note
+
+note right of reports::photo_urls
+  Array of Appwrite URLs.
+  Max 2 photos per report.
+  
+  Stored as JSONB:
+  ["url1", "url2"]
+end note
+
+@enduml
+```
+
+---
+
+# 🔄 PART 4: UPDATED KEY SEQUENCE DIAGRAM (Submit Report with Deadline Logic)
+
+```plantuml
+@startuml Submit_Report_With_Deadline_Sequence
+!theme plain
+autonumber
+
+actor "Cell Leader" as CL
+participant "Flutter App" as App
+participant "Hive (Local DB)" as Hive
+participant "FastAPI Backend" as API
+participant "PostgreSQL" as DB
+participant "Appwrite Storage" as Storage
+participant "FCM Service" as FCM
+
+CL -> App: Fill report form\n(Meeting on Wednesday Mar 12)
+activate App
+
+CL -> App: Select 1-2 photos
+App -> App: Compress photos
+
+CL -> App: Tap "Submit"\n(Thursday Mar 13, 3pm)
+App -> App: Validate form data
+
+App -> App: Calculate submission deadline:\nSunday Mar 16, 9am
+
+App -> App: Calculate week boundaries:\nweek_start = Mon Mar 10\nweek_end = Sun Mar 16
+
+App -> Hive: Save draft\n(in case of failure)
+activate Hive
+Hive --> App: Draft saved
+deactivate Hive
+
+App -> Storage: Upload photos
+activate Storage
+Storage --> App: Photo URLs
+deactivate Storage
+
+App -> API: POST /api/reports\n{\n  meetingDate: "2026-03-12",\n  weekStartDate: "2026-03-10",\n  weekEndDate: "2026-03-16",\n  actualMeetingDay: "WEDNESDAY",\n  submissionDeadline: "2026-03-16T09:00:00Z",\n  photoUrls: ["url1", "url2"],\n  ...\n}
+activate API
+
+API -> API: Validate report data
+API -> API: Check duplicate:\nWHERE cell_id = ? AND week_start_date = ?
+
+alt No duplicate
+  API -> API: Determine status:\nIF NOW() <= submission_deadline\n  THEN "SUBMITTED"\nELSE "LATE"
+  
+  note right
+    Submitted at: Mar 13, 3pm
+    Deadline: Mar 16, 9am
+    Status: SUBMITTED (on time)
+  end note
+  
+  API -> DB: INSERT INTO cell_reports\n(..., status = 'SUBMITTED')
+  activate DB
+  DB --> API: Report created (UUID)
+  deactivate DB
+  
+  API -> DB: DELETE FROM sync_queue\nWHERE user_id = ?
+  
+  API -> API: Check if Senior Cell Leader\nneeds notification
+  
+  API -> FCM: Send notification to SCL:\n"Cell 1A submitted weekly report"
+  activate FCM
+  FCM --> API: Notification sent
+  deactivate FCM
+  
+  API --> App: 201 Created\n{\n  id: uuid,\n  status: "SUBMITTED",\n  submittedAt: "2026-03-13T15:00:00Z",\n  deadline: "2026-03-16T09:00:00Z"\n}
+  
+  App -> Hive: Delete draft
+  App --> CL: Show success:\n"Report submitted on time!\nDeadline: Sunday 9am"
+  
+else Report for this week already exists
+  API --> App: 400 Bad Request\n{error: "Report already exists for this week"}
+  App --> CL: Show error
+  
+end
+
+deactivate API
+deactivate App
+
+note over CL, FCM
+  LATE SUBMISSION SCENARIO:
+  If Cell Leader submits on Sunday Mar 16 at 10am
+  (1 hour after deadline), status = "LATE"
+  
+  OVERDUE SCENARIO:
+  If no submission by Sunday 9am, a cron job
+  marks the report as "OVERDUE" and sends
+  alert to Fellowship Pastor.
+end note
+
+@enduml
+```
+
+---
+
+# 📊 PART 5: UPDATED COMPONENT DIAGRAM
+
+```plantuml
+@startuml Component_Diagram_v2
+!theme plain
+
+package "Flutter Mobile App" {
+  component [UI Layer] as MobileUI
+  component [State Management\n(Riverpod)] as MobileState
+  component [Offline Storage\n(Hive)] as Hive
+  component [HTTP Client\n(Dio)] as MobileDio
+  component [Background Sync\nWorker] as SyncWorker
+  component [FCM Client] as MobileFCM
+  component [Deadline Calculator] as DeadlineCalc
+}
+
+package "Flutter Web Dashboard" {
+  component [Dashboard UI] as WebUI
+  component [State Management\n(Riverpod)] as WebState
+  component [HTTP Client\n(Dio)] as WebDio
+  component [Chart Library\n(fl_chart)] as Charts
+  component [Export Service\n(PDF/CSV)] as Export
+}
+
+package "FastAPI Backend" {
+  component [API Routes] as Routes
+  component [Auth Service\n(JWT + bcrypt)] as AuthService
+  component [Report Service] as ReportService
+  component [Dashboard Service] as DashboardService
+  component [Notification Service\n(FCM)] as NotificationService
+  component [Cron Jobs\n(Overdue Checker)] as CronJobs
+  component [Database ORM\n(SQLAlchemy)] as ORM
+}
+
+database "PostgreSQL\n(Neon)" as DB {
+  frame "Tables" {
+    component [regions]
+    component [zones]
+    component [fellowships]
+    component [senior_cells]
+    component [cells]
+    component [cell_reports]
+    component [users]
+  }
+}
+
+cloud "Appwrite Storage" as Appwrite
+cloud "Firebase Cloud\nMessaging" as FCM
+
+' Mobile app connections
+MobileUI --> MobileState
+MobileState --> DeadlineCalc : "Calculate deadline"
+MobileState --> Hive : "Save offline"
+MobileState --> MobileDio : "API calls"
+MobileDio --> Routes
+SyncWorker --> Hive : "Read queue"
+SyncWorker --> MobileDio : "Sync reports"
+MobileFCM --> MobileState : "Receive notifications"
+
+' Web dashboard connections
+WebUI --> WebState
+WebUI --> Charts
+WebUI --> Export
+WebState --> WebDio
+WebDio --> Routes
+
+' Backend connections
+Routes --> AuthService
+Routes --> ReportService
+Routes --> DashboardService
+Routes --> NotificationService
+
+ReportService --> ORM
+ReportService --> Appwrite : "Upload photos"
+DashboardService --> ORM
+NotificationService --> FCM : "Send push"
+CronJobs --> ORM : "Check overdue reports"
+CronJobs --> NotificationService : "Trigger alerts"
+
+AuthService --> ORM
+ORM --> DB
+
+note right of DeadlineCalc
+  Calculates:
+  - Week boundaries (Mon-Sun)
+  - Submission deadline (Sun 9am)
+  - Status (on time vs late)
+end note
+
+note bottom of CronJobs
+  Runs every Sunday at 9:05am:
+  1. Find reports not submitted
+  2. Mark as OVERDUE
+  3. Send FCM alert to
+     Fellowship Pastor
+end note
+
+note bottom of Appwrite
+  Free-tier bucket:
+  - 2GB storage
+  - 1-2 photos per report
+  - Public read URLs
+end note
+
+note bottom of FCM
+  Push notifications:
+  - Meeting reminders (Mon 8am)
+  - Submission reminders (Thu 6pm)
+  - Late alerts (Sat 6pm)
+  - Overdue alerts (Sun 9:05am)
+  - Manual nudges
+end note
+
+note top of DB
+  Hierarchy:
+  Region → Zone → Fellowship
+  → Senior Cell → Cell
+  
+  Zonal Pastor & Zonal Admin
+  have identical permissions.
+end note
+
+@enduml
+```
+
+---
+
+# 🎯 KEY CHANGES SUMMARY
+
+## What Changed:
+
+### 1. **Hierarchy Updates**:
+- ✅ Added `Region` entity above `Zone`
+- ✅ `Zone` has both `zonal_pastor_id` and `zonal_admin_id` (both see same data)
+- ✅ `Fellowship` has `location` field
+
+### 2. **Leader Names**:
+- ✅ `SeniorCell.leader_name` - denormalized for performance
+- ✅ `Cell.leader_name` - denormalized for performance
+- ✅ These will be updated via database triggers when `User.name` changes
+
+### 3. **Meeting Day Logic**:
+- ✅ `Cell.default_meeting_day` - defaults to Monday
+- ✅ `Cell.actual_meeting_day` - can be changed within the week
+- ✅ `CellReport.actual_meeting_day` - records when meeting actually happened
+- ✅ Reports are **weekly**, not daily
+
+### 4. **Deadline System**:
+- ✅ `CellReport.week_start_date` - Monday of the week
+- ✅ `CellReport.week_end_date` - Sunday of the week
+- ✅ `CellReport.submission_deadline` - Sunday 9am
+- ✅ Status logic:
+  - **SUBMITTED**: Submitted before Sunday 9am
+  - **LATE**: Submitted after Sunday 9am
+  - **OVERDUE**: Not submitted by Sunday 9am (marked by cron job)
+
+### 5. **Role Clarifications**:
+- ✅ `ZONAL_PASTOR` - top leader of zone
+- ✅ `ZONAL_ADMIN` - data coordinator (sees same data as Zonal Pastor)
+- ✅ Both roles have identical dashboard permissions
+
+---
