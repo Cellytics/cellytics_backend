@@ -825,13 +825,19 @@ async def list_users(
     current_user: User = Depends(get_current_user),
 ):
     """List users. Filter by zone_id or role if provided."""
-    check_system_admin(current_user)
+    if current_user.role not in {"system_admin", "zonal_admin"}:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     try:
         query = select(User)
 
-        if zone_id:
+        if current_user.role == "zonal_admin":
+            query = query.where(User.zone_id == current_user.zone_id)
+            if zone_id and zone_id != current_user.zone_id:
+                raise HTTPException(status_code=403, detail="Can only list users in your zone")
+        elif zone_id:
             query = query.where(User.zone_id == zone_id)
+
         if role:
             query = query.where(User.role == role)
 
