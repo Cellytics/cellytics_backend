@@ -18,7 +18,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiClient, getErrorMessage } from '@/lib/api';
-import { AUTH_TOKEN_KEY, USER_KEY } from '@/utils/constants';
+import { AUTH_ENDPOINTS, AUTH_TOKEN_KEY, USER_KEY } from '@/utils/constants';
 import type { User, AuthContextType, LoginRequest, LoginResponse } from '@/types/auth';
 
 // Create the context (this is where the data lives)
@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /**
    * LOGIN FUNCTION
    * 
-   * Makes POST request to /auth/login with phone and PIN
+   * Makes POST request to /api/auth/login with phone and PIN
    * Saves token and user to localStorage
    * Updates context state
    */
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      const response = await apiClient.post<LoginResponse>('/auth/login', {
+      const response = await apiClient.post<LoginResponse>(AUTH_ENDPOINTS.login, {
         phone,
         pin,
       } satisfies LoginRequest);
