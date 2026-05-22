@@ -6,7 +6,7 @@ from uuid import UUID
 from typing import Optional
  
 from database import get_session
-from models import User, Cell, CellReport
+from models import User, Cell, CellReport, SeniorCell, Fellowship
 from schemas import CellReportSubmit, CellReportResponse
 from services.report_service import ReportService
 from utils.security import (
@@ -126,6 +126,32 @@ async def list_reports(
         result = await session.execute(query)
         reports = result.scalars().all()
  
+        cell_ids = {r.cell_id for r in reports}
+        cells_by_id = {}
+        senior_cells_by_id = {}
+        fellowships_by_id = {}
+
+        if cell_ids:
+            cells_result = await session.execute(select(Cell).where(Cell.id.in_(cell_ids)))
+            cells = cells_result.scalars().all()
+            cells_by_id = {c.id: c for c in cells}
+
+            senior_cell_ids = {c.senior_cell_id for c in cells}
+            if senior_cell_ids:
+                senior_cells_result = await session.execute(
+                    select(SeniorCell).where(SeniorCell.id.in_(senior_cell_ids))
+                )
+                senior_cells = senior_cells_result.scalars().all()
+                senior_cells_by_id = {sc.id: sc for sc in senior_cells}
+
+                fellowship_ids = {sc.fellowship_id for sc in senior_cells}
+                if fellowship_ids:
+                    fellowships_result = await session.execute(
+                        select(Fellowship).where(Fellowship.id.in_(fellowship_ids))
+                    )
+                    fellowships = fellowships_result.scalars().all()
+                    fellowships_by_id = {f.id: f for f in fellowships}
+
         return {
             "count": len(reports),
             "offset": offset,
@@ -134,11 +160,47 @@ async def list_reports(
                 {
                     "id": str(r.id),
                     "cell_id": str(r.cell_id),
+                    "cell_name": cells_by_id.get(r.cell_id).name if cells_by_id.get(r.cell_id) else None,
+                    "senior_cell_id": str(cells_by_id.get(r.cell_id).senior_cell_id) if cells_by_id.get(r.cell_id) else None,
+                    "senior_cell_name": (
+                        senior_cells_by_id.get(cells_by_id.get(r.cell_id).senior_cell_id).name
+                        if cells_by_id.get(r.cell_id)
+                        and senior_cells_by_id.get(cells_by_id.get(r.cell_id).senior_cell_id)
+                        else None
+                    ),
+                    "fellowship_id": (
+                        str(senior_cells_by_id.get(cells_by_id.get(r.cell_id).senior_cell_id).fellowship_id)
+                        if cells_by_id.get(r.cell_id)
+                        and senior_cells_by_id.get(cells_by_id.get(r.cell_id).senior_cell_id)
+                        else None
+                    ),
+                    "fellowship_name": (
+                        fellowships_by_id.get(
+                            senior_cells_by_id.get(cells_by_id.get(r.cell_id).senior_cell_id).fellowship_id
+                        ).name
+                        if cells_by_id.get(r.cell_id)
+                        and senior_cells_by_id.get(cells_by_id.get(r.cell_id).senior_cell_id)
+                        and fellowships_by_id.get(
+                            senior_cells_by_id.get(cells_by_id.get(r.cell_id).senior_cell_id).fellowship_id
+                        )
+                        else None
+                    ),
                     "status": r.status,
                     "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
                     "week_start_date": r.week_start_date.isoformat(),
                     "total_attendance": r.total_attendance,
+                    "first_timers": r.first_timers,
+                    "filled_holy_ghost": r.filled_holy_ghost,
+                    "new_members": r.new_members,
+                    "number_saved": r.number_saved,
                     "souls_won": r.souls_won,
+                    "finance_oblation": float(r.finance_oblation or 0),
+                    "finance_offerings": float(r.finance_offerings or 0),
+                    "finance_tithes": float(r.finance_tithes or 0),
+                    "finance_thanksgiving": float(r.finance_thanksgiving or 0),
+                    "finance_seed": float(r.finance_seed or 0),
+                    "finance_partnership": float(r.finance_partnership or 0),
+                    "finance_first_fruits": float(r.finance_first_fruits or 0),
                     "finance_total": float(r.finance_total or 0),
                 }
                 for r in reports

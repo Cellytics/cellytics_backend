@@ -1,0 +1,48 @@
+/**
+ * GLOBAL STYLES
+ * 
+ * Tailwind CSS base styles and custom global CSS
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Smooth transitions */
+* {
+  @apply transition-colors duration-200;
+}
+
+/* Focus states for accessibility */
+input:focus,
+button:focus {
+  @apply outline-none ring-2 ring-gold ring-offset-2;
+}
+
+/* Form styling helpers */
+input[type='text'],
+input[type='email'],
+input[type='password'],
+textarea,
+select {
+  @apply rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-gold focus:border-transparent;
+}
