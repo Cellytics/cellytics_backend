@@ -63,3 +63,40 @@ Require stack:
   ],
   page: '/dashboard/zone/fellowships'
 }
+[Error: ENOENT: no such file or directory, stat 'C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\cache\webpack\server-development\4.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\.next\\cache\\webpack\\server-development\\4.pack.gz'
+}
+ ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat 'C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\cache\webpack\server-development\4.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\.next\\cache\\webpack\\server-development\\4.pack.gz'
+}
+ ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat 'C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\cache\webpack\server-development\4.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\.next\\cache\\webpack\\server-development\\4.pack.gz'
+}
+[Error: ENOENT: no such file or directory, stat 'C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\cache\webpack\server-development\8.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\.next\\cache\\webpack\\server-development\\8.pack.gz'
+}
+ ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat 'C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\cache\webpack\server-development\8.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\.next\\cache\\webpack\\server-development\\8.pack.gz'
+}
+ ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat 'C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\cache\webpack\server-development\8.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\.next\\cache\\webpack\\server-development\\8.pack.gz'
+}
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, stat 'C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\cache\webpack\server-development\0.pack.gz'
