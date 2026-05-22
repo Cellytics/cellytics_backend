@@ -75,7 +75,7 @@ FR-6: Reporting & Analytics
 NFR	Requirement	Target	How to Measure
 Performance	Dashboard load time	< 3 sec on 3G	Lighthouse/manual testing
 Performance	Report submission	< 2 sec	Backend logging
-Performance	Offline form responsiveness	< 100ms	Flutter DevTools
+Performance	Offline form resp \u7onsiveness	< 100ms	Flutter DevTools
 Scalability	Concurrent users	100 users (Zone B)	Load testing
 Scalability	Database growth	10,000 reports/year	PostgreSQL monitoring
 Reliability	Uptime	99% (7 hrs downtime/month)	Render monitoring

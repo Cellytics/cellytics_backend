@@ -1,0 +1,18 @@
+
+> cellytics-dashboards@0.1.0 dev
+> next dev --hostname 127.0.0.1 -p 3000
+
+  ▲ Next.js 14.2.35
+  - Local:        http://127.0.0.1:3000
+  - Network:      http://127.0.0.1:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 6.2s
+ ○ Compiling /dashboard/zone/fellowships ...
+ ✓ Compiled /dashboard/zone/fellowships in 10.4s (730 modules)
+ ✓ Compiled in 2.8s (327 modules)
+ GET /dashboard/zone/fellowships 200 in 13355ms
+ ○ Compiling /dashboard/zone ...
+ ✓ Compiled /dashboard/zone in 3.6s (723 modules)
+ GET /dashboard/zone 200 in 4240ms
