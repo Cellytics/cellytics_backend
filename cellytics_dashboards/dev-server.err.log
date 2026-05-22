@@ -1,12 +1,65 @@
- ⨯ Failed to start server
-Error: listen EADDRINUSE: address already in use 127.0.0.1:3000
-    at Server.setupListenHandle [as _listen2] (node:net:1904:16)
-    at listenInCluster (node:net:1961:12)
-    at doListen (node:net:2135:7)
-    at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
-  code: 'EADDRINUSE',
-  errno: -4091,
-  syscall: 'listen',
-  address: '127.0.0.1',
-  port: 3000
+ ⨯ Error: Cannot find module './515.js'
+Require stack:
+- C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\server\webpack-runtime.js
+- C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\server\app\dashboard\zone\page.js
+- C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\require.js
+- C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\load-components.js
+- C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\build\utils.js
+- C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\dev\hot-middleware.js
+- C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\dev\hot-reloader-webpack.js
+- C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\lib\router-server.js
+- C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\lib\start-server.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1145:15)
+    at C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\require-hook.js:55:36
+    at Module._load (node:internal/modules/cjs/loader:986:27)
+    at Module.require (node:internal/modules/cjs/loader:1233:19)
+    at mod.require (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:179:18)
+    at __webpack_require__.f.require (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\server\webpack-runtime.js:198:28)
+    at C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\server\webpack-runtime.js:111:40
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\server\webpack-runtime.js:110:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\server\webpack-runtime.js:162:22)
+    at C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\server\app\dashboard\zone\fellowships\page.js:1:14753
+    at Object.<anonymous> (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\.next\server\app\dashboard\zone\fellowships\page.js:1:14802)
+    at Module._compile (node:internal/modules/cjs/loader:1358:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1416:10)
+    at Module.load (node:internal/modules/cjs/loader:1208:32)
+    at Module._load (node:internal/modules/cjs/loader:1024:12)
+    at Module.require (node:internal/modules/cjs/loader:1233:19)
+    at mod.require (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:179:18)
+    at requirePage (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\require.js:109:84)
+    at C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\load-components.js:103:84
+    at async loadComponentsImpl (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\load-components.js:103:26)
+    at async DevServer.findPageComponentsImpl (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\next-server.js:714:36)
+    at async DevServer.findPageComponents (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\dev\next-dev-server.js:577:20)
+    at async DevServer.renderPageComponent (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\base-server.js:1910:24)
+    at async DevServer.renderToResponseImpl (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\base-server.js:818:17)
+    at async C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (C:\Users\IHIMBRU\Desktop\celltrack_backend\cellytics_dashboards\node_modules\next\dist\server\lib\start-server.js:141:13) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\.next\\server\\webpack-runtime.js',
+    'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\.next\\server\\app\\dashboard\\zone\\page.js',
+    'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\node_modules\\next\\dist\\server\\require.js',
+    'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\node_modules\\next\\dist\\server\\load-components.js',
+    'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\node_modules\\next\\dist\\build\\utils.js',
+    'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\node_modules\\next\\dist\\server\\dev\\hot-middleware.js',
+    'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\node_modules\\next\\dist\\server\\dev\\hot-reloader-webpack.js',
+    'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\node_modules\\next\\dist\\server\\lib\\router-utils\\setup-dev-bundler.js',
+    'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\node_modules\\next\\dist\\server\\lib\\router-server.js',
+    'C:\\Users\\IHIMBRU\\Desktop\\celltrack_backend\\cellytics_dashboards\\node_modules\\next\\dist\\server\\lib\\start-server.js'
+  ],
+  page: '/dashboard/zone/fellowships'
 }
