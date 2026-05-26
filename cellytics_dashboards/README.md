@@ -270,3 +270,21 @@ console.log(process.env.NEXT_PUBLIC_API_URL);
 ---
 
 **Questions?** Check the comments in each file - they explain the "why" behind each piece of code.
+
+
+
+
+
+
+Now add the fellowship dashboard. Remember we have a fellowship belonging to a zone. We should be able to see all aggregate stats like total number of senior cells, total numbeer of cells, cells percentage that reported, the total attendance, souls won, finances, grouwth rate, a barchat showing fellowship attendance trends, conversion sources, growth metrics, and synonymous to the zonal dashboard, here we should be able to see the top senior cell/cell of the week. We should also be able to see these aggregate stats over a period of week, month and year like in the zonal dashboard. The fellowship pastor should be able to zoom into senior cells and see the various senior cells and the cells under them, zoom into cells and see full cell reports of various cell leaders submitted (all the data), make comments and validate the report, the fellowship should also be able to ping a senior cell leader or cell leader about an unsubmitted report, also view unsubmitted cells that haven't reported. The fellowship should also create new senior cells and add/assign cells to them. Remember a cell report is submitted to a cell which is under a senior cell that belongs to a fellowship that belongs to a zone, that belongs to a region.
+
+
+FR-3.3: Fellowship Pastor Dashboard
+o List all senior cells in fellowship
+o Submission rate: X/Y cells reported
+o Aggregated stats: total attendance, souls won, total finances, first-timers
+o List of cells needing attention (no report >7 days, declining attendance >20%)
+o View any cell report
+o Export weekly report (CSV/PDF).
+
+Understand our reqs, the nextjs structure, backend structure and neatly integrate the new fellowship dashboard, matching our brand, test it and deploy to a new branch.
