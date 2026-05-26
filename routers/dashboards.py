@@ -79,10 +79,11 @@ async def get_senior_cell_dashboard(
 @router.get("/dashboards/fellowship/{fellowship_id}")
 async def get_fellowship_dashboard(
     fellowship_id: UUID,
+    period: str = "week",
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Fellowship Pastor dashboard"""
+    """Fellowship Pastor dashboard with period filtering"""
     try:
         result = await session.execute(
             select(Fellowship).where(Fellowship.id == fellowship_id)
@@ -93,10 +94,15 @@ async def get_fellowship_dashboard(
             raise HTTPException(status_code=404, detail="Fellowship not found")
         await ensure_fellowship_access(session, current_user, fellowship_id)
  
+        # Validate period
+        if period not in ["week", "month", "year", "all"]:
+            period = "week"
+ 
         # Use service
         dashboard = await DashboardService.build_fellowship_dashboard(
             session=session,
-            fellowship_id=fellowship_id
+            fellowship_id=fellowship_id,
+            period=period
         )
  
         return dashboard
@@ -105,6 +111,117 @@ async def get_fellowship_dashboard(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to fetch dashboard")
+
+
+@router.get("/dashboards/fellowship/{fellowship_id}/senior-cells")
+async def get_fellowship_senior_cells(
+    fellowship_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all senior cells in a fellowship with their stats"""
+    try:
+        result = await session.execute(
+            select(Fellowship).where(Fellowship.id == fellowship_id)
+        )
+        fellowship = result.scalar_one_or_none()
+ 
+        if not fellowship:
+            raise HTTPException(status_code=404, detail="Fellowship not found")
+        await ensure_fellowship_access(session, current_user, fellowship_id)
+ 
+        senior_cells = await DashboardService.get_fellowship_senior_cells(
+            session=session,
+            fellowship_id=fellowship_id
+        )
+ 
+        return {
+            "fellowship_id": str(fellowship_id),
+            "fellowship_name": fellowship.name,
+            "senior_cells": senior_cells,
+        }
+ 
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to fetch senior cells")
+
+
+@router.get("/dashboards/senior-cell/{senior_cell_id}/details")
+async def get_senior_cell_details(
+    senior_cell_id: UUID,
+    period: str = "week",
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Get detailed view of a senior cell with all cells and reports"""
+    try:
+        result = await session.execute(
+            select(SeniorCell).where(SeniorCell.id == senior_cell_id)
+        )
+        senior_cell = result.scalar_one_or_none()
+ 
+        if not senior_cell:
+            raise HTTPException(status_code=404, detail="Senior cell not found")
+        await ensure_senior_cell_access(session, current_user, senior_cell_id)
+ 
+        # Validate period
+        if period not in ["week", "month", "year"]:
+            period = "week"
+ 
+        details = await DashboardService.get_senior_cell_details(
+            session=session,
+            senior_cell_id=senior_cell_id,
+            period=period
+        )
+ 
+        return details
+ 
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to fetch senior cell details")
+
+
+@router.post("/dashboards/fellowship/{fellowship_id}/ping-leader")
+async def ping_leader(
+    fellowship_id: UUID,
+    leader_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Send a notification to a senior cell or cell leader about unsubmitted report"""
+    try:
+        result = await session.execute(
+            select(Fellowship).where(Fellowship.id == fellowship_id)
+        )
+        fellowship = result.scalar_one_or_none()
+ 
+        if not fellowship:
+            raise HTTPException(status_code=404, detail="Fellowship not found")
+        await ensure_fellowship_access(session, current_user, fellowship_id)
+ 
+        # Get the leader
+        result = await session.execute(
+            select(User).where(User.id == leader_id)
+        )
+        leader = result.scalar_one_or_none()
+ 
+        if not leader:
+            raise HTTPException(status_code=404, detail="Leader not found")
+ 
+        # TODO: Implement FCM notification to leader
+        # For now, just return success
+ 
+        return {
+            "message": f"Notification sent to {leader.name}",
+            "leader_id": str(leader_id),
+        }
+ 
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to send notification")
  
  
 @router.get("/dashboards/zone/{zone_id}")

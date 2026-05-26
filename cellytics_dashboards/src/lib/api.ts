@@ -14,6 +14,9 @@ import axios, { AxiosError } from 'axios';
 import { API_BASE_URL, AUTH_TOKEN_KEY } from '@/utils/constants';
 import type { ApiError } from '@/types/api';
 
+// Export API_BASE_URL for use in components
+export { API_BASE_URL };
+
 // Create axios instance with base URL
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
