@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 import logging
 from datetime import datetime
+import httpx
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from database import close_db
 
@@ -18,6 +20,10 @@ from routers import auth, admin, reports, dashboards, notifications, uploads
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Initialize background scheduler for keep-alive pings
+scheduler = BackgroundScheduler()
+RENDER_BACKEND_URL = "https://cellytics-yvet.onrender.com"
 
 app = FastAPI(
     title="BLW Cell Reporting System",
@@ -68,16 +74,40 @@ app.openapi = custom_openapi
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# KEEP-ALIVE PINGER (for Render free tier)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def ping_render_backend():
+    """Ping Render backend every 5 mins to keep it alive"""
+    try:
+        response = httpx.get(f"{RENDER_BACKEND_URL}/health", timeout=10)
+        if response.status_code == 200:
+            logger.info("✅ Keep-alive ping successful")
+        else:
+            logger.warning(f"⚠️ Keep-alive ping got status {response.status_code}")
+    except Exception as e:
+        logger.error(f"❌ Keep-alive ping failed: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # LIFECYCLE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.on_event("startup")
 async def startup():
     logger.info("🚀 BLW Cell Track API starting...")
+    # Start background scheduler to keep Render backend alive
+    if not scheduler.running:
+        scheduler.add_job(ping_render_backend, 'interval', minutes=5, id='keep_alive_ping')
+        scheduler.start()
+        logger.info("📡 Keep-alive pinger started (every 5 minutes)")
 
 @app.on_event("shutdown")
 async def shutdown():
     logger.info("🛑 Shutting down...")
+    if scheduler.running:
+        scheduler.shutdown()
+        logger.info("📡 Keep-alive pinger stopped")
     await close_db()
 
 
