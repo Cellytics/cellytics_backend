@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/api';
+import { AUTH_TOKEN_KEY } from '@/utils/constants';
 
 interface CellStatus {
   cell_id: string;
@@ -50,14 +51,10 @@ export default function CellsPage() {
         // This would normally call a dedicated endpoint
         // For now, we'll fetch from the dashboard endpoint
         const response = await fetch(
-          `${API_BASE_URL}/dashboards/fellowship/${fellowshipId}?period=week`,
+          `${API_BASE_URL}/api/dashboards/fellowship/${fellowshipId}?period=week`,
           {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            },
-          }
-        );
-
+              'Authorization': `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
         if (!response.ok) {
           throw new Error('Failed to load cells');
         }

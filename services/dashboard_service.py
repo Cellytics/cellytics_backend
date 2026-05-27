@@ -401,9 +401,10 @@ class DashboardService:
             }
  
         for report in reports:
-            cell = next((c for c in await session.execute(
+            result = await session.execute(
                 select(Cell).where(Cell.id == report.cell_id)
-            )), None)
+            )
+            cell = result.scalar_one_or_none()
             if cell and cell.senior_cell_id in sc_stats:
                 sc_stats[cell.senior_cell_id]["total_attendance"] += report.total_attendance or 0
                 sc_stats[cell.senior_cell_id]["total_souls_won"] += report.souls_won or 0

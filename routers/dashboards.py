@@ -110,7 +110,12 @@ async def get_fellowship_dashboard(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to fetch dashboard")
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Dashboard error: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to fetch dashboard: {str(e)}")
 
 
 @router.get("/dashboards/fellowship/{fellowship_id}/senior-cells")
