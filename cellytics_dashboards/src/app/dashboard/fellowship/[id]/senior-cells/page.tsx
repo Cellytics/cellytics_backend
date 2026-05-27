@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/api';
+import { AUTH_TOKEN_KEY } from '@/utils/constants';
 
 interface SeniorCellData {
   id: string;
@@ -95,14 +96,13 @@ export default function SeniorCellsPage() {
       setError(null);
       try {
         const response = await fetch(
-          `${API_BASE_URL}/dashboards/fellowship/${fellowshipId}/senior-cells`,
+          `${API_BASE_URL}/api/dashboards/fellowship/${fellowshipId}/senior-cells`,
           {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Authorization': `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
             },
           }
         );
-
         if (!response.ok) {
           throw new Error('Failed to load senior cells');
         }

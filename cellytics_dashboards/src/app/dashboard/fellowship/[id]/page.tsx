@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SuccessAlert } from '@/components/SuccessAlert';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/api';
+import { AUTH_TOKEN_KEY } from '@/utils/constants';
 import { useParams } from 'next/navigation';
 
 type Period = 'week' | 'month' | 'year' | 'all';
@@ -247,10 +248,10 @@ export default function FellowshipDashboardPage() {
     setError(null);
     try {
       const response = await fetch(
-        `${API_BASE_URL}/dashboards/fellowship/${fellowshipId}?period=${period}`,
+        `${API_BASE_URL}/api/dashboards/fellowship/${fellowshipId}?period=${period}`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
           },
         }
       );

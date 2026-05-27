@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/api';
+import { AUTH_TOKEN_KEY } from '@/utils/constants';
 import { SuccessAlert } from '@/components/SuccessAlert';
 
 interface CellReport {
@@ -78,12 +79,12 @@ export default function CellReportDetailPage() {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/reports/${reportId}/comments`,
+        `${API_BASE_URL}/api/reports/${reportId}/comments`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
           },
           body: JSON.stringify({
             comment: comment.trim(),
