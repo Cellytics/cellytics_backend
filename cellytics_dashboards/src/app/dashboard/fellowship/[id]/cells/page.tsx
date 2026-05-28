@@ -55,6 +55,9 @@ export default function CellsPage() {
           {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
+            },
+          }
+        );
         if (!response.ok) {
           throw new Error('Failed to load cells');
         }
