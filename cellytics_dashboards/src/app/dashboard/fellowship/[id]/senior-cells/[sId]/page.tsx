@@ -61,6 +61,9 @@ export default function SeniorCellDetailsPage() {
           {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
+            },
+          }
+        );
         if (!response.ok) {
           throw new Error('Failed to load senior cell details');
         }
