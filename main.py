@@ -37,6 +37,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
     "http://localhost:3000",
+    "http://localhost:3001",
     "https://cellytics-backend.vercel.app/",],
 allow_origin_regex=r"https://.*\.vercel\.app",
     # allow_origins=["*"],
