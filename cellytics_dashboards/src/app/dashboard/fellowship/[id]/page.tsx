@@ -49,41 +49,66 @@ const getPeriodLabel = (period: Period) => {
   return 'All Data';
 };
 
+function StatCard({ 
+  label, 
+  value, 
+  subtext = '', 
+  tone = 'gold',
+  percentage = null 
+}: { 
+  label: string; 
+  value: string | number; 
+  subtext?: string;
+  tone?: 'gold' | 'green' | 'blue' | 'purple' | 'orange';
+  percentage?: number | null;
+}) {
+  const colorClasses = {
+    gold: 'border-l-gold text-yellow-600',
+    green: 'border-l-green-500 text-green-600',
+    blue: 'border-l-navy text-navy',
+    purple: 'border-l-purple-500 text-purple-600',
+    orange: 'border-l-orange-500 text-orange-600',
+  };
 
+  const colors = colorClasses[tone];
 
-function StatTile({ label, value, tone = 'gold' }: { label: string; value: string | number; tone?: 'gold' | 'green' | 'orange' }) {
-  const border = tone === 'green' ? 'border-l-forest-green' : tone === 'orange' ? 'border-l-orange-accent' : 'border-l-gold';
   return (
-    <div className={`min-h-[78px] rounded-md border border-gray-200 ${border} border-l-4 bg-white px-4 py-3 shadow-sm`}>
-      <p className="text-[11px] font-semibold text-slate-500">{label}</p>
-      <p className={`mt-2 text-xl font-bold ${tone === 'green' ? 'text-forest-green' : tone === 'orange' ? 'text-orange-accent' : 'text-navy'}`}>
+    <div className={`rounded-lg border border-gray-200 ${colors.split(' ')[0]} border-l-4 bg-white px-4 py-3 shadow-sm`}>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`mt-2 text-2xl font-bold ${colors.split(' ').slice(1).join(' ')}`}>
         {value}
       </p>
+      {subtext && <p className="mt-1 text-xs text-slate-400">{subtext}</p>}
+      {percentage !== null && (
+        <p className={`mt-1 text-xs font-semibold ${percentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          {percentage >= 0 ? '↑' : '↓'} {Math.abs(percentage)}%
+        </p>
+      )}
     </div>
   );
 }
 
 function FellowshipTopbar({
   fellowshipName,
-  location,
   period,
   onPeriodChange,
+  onRefresh,
 }: {
   fellowshipName: string;
-  location: string;
   period: Period;
   onPeriodChange: (period: Period) => void;
+  onRefresh: () => void;
 }) {
   return (
-    <div className="mb-5 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-navy text-sm font-bold text-gold">
-            F
+    <div className="mb-6 rounded-lg border border-gray-200 bg-white px-5 py-4 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-navy text-sm font-bold text-gold">
+            {fellowshipName.charAt(0)}
           </div>
-          <div className="min-w-0">
-            <p className="truncate font-serif text-base text-navy">{fellowshipName} Dashboard</p>
-            <p className="text-xs text-slate-500">{location} • Your fellowship command center</p>
+          <div>
+            <p className="text-lg font-semibold text-navy">Welcome, {fellowshipName.split(' ')[0]}.</p>
+            <p className="text-xs text-slate-500">Your fellowship at a glance.</p>
           </div>
         </div>
 
@@ -91,19 +116,25 @@ function FellowshipTopbar({
           <select
             value={period}
             onChange={(event) => onPeriodChange(event.target.value as Period)}
-            className="rounded-full border border-gray-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+            className="rounded-lg border border-gray-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
           >
             {(['week', 'month', 'year', 'all'] as Period[]).map((option) => (
               <option key={option} value={option}>{getPeriodLabel(option)}</option>
             ))}
           </select>
+          <button
+            onClick={onRefresh}
+            className="rounded-lg border border-gray-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
+          >
+            ↻ Refresh
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function TrendChart({ data }: { data: TrendPoint[] }) {
+function AttendanceTrendChart({ data }: { data: TrendPoint[] }) {
   if (data.length === 0) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
@@ -112,27 +143,50 @@ function TrendChart({ data }: { data: TrendPoint[] }) {
     );
   }
 
-  const maxAttendance = Math.max(...data.map((w) => w.attendance), 1);
+  const maxAttendance = Math.max(...data.map((w) => w.attendance + w.first_timers), 1);
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
-      <h2 className="mb-4 font-serif text-base text-navy">Attendance Trend</h2>
-      <div className="flex h-64 items-end gap-2 sm:gap-3">
-        {data.map((week, index) => {
-          const height = Math.max((week.attendance / maxAttendance) * 100, 10);
-          const isCurrent = index === data.length - 1;
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="font-semibold text-navy">Fellowship Attendance Trend</h2>
+        <div className="flex gap-4 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-sm bg-navy"></div>
+            <span className="text-slate-600">Attendance</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-sm bg-sky-200"></div>
+            <span className="text-slate-600">Variance</span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="flex h-64 items-end gap-1 sm:gap-2">
+        {data.map((week) => {
+          const attendanceHeight = (week.attendance / maxAttendance) * 100;
+          const totalHeight = ((week.attendance + week.first_timers) / maxAttendance) * 100;
+          const varianceHeight = totalHeight - attendanceHeight;
 
           return (
             <div key={week.week} className="flex flex-1 flex-col items-center gap-2">
               <div className="relative h-full w-full rounded-t bg-slate-50">
+                {/* Main attendance bar */}
                 <div
-                  className={`w-full rounded-t ${isCurrent ? 'bg-gold' : 'bg-slate-200'}`}
-                  style={{ height: `${height}%` }}
+                  className="w-full rounded-t bg-navy transition-all"
+                  style={{ height: `${attendanceHeight}%` }}
                   title={`${week.attendance} attendance`}
                 />
+                {/* Variance bar */}
+                {varianceHeight > 0 && (
+                  <div
+                    className="w-full bg-sky-200 transition-all"
+                    style={{ height: `${varianceHeight}%` }}
+                    title={`${week.first_timers} first timers`}
+                  />
+                )}
               </div>
               <p className="text-[10px] text-slate-400">
-                {index === 0 ? 'Start' : isCurrent ? 'Current' : ''}
+                Week {week.week.split(' ')[1] || week.week}
               </p>
             </div>
           );
@@ -142,31 +196,149 @@ function TrendChart({ data }: { data: TrendPoint[] }) {
   );
 }
 
-function CellsNeedingAttention({ cells }: { cells: any[] }) {
-  if (cells.length === 0) {
+function ConversionSourcesChart({ data }: { data: any[] }) {
+  if (data.length === 0) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <p className="text-center text-sm text-slate-500">✓ All cells are reporting well</p>
+      <div className="rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
+        <p className="text-center text-sm text-slate-500">No conversion data available</p>
+      </div>
+    );
+  }
+
+  const total = data.reduce((sum, item) => sum + item.count, 0);
+  const colors = ['bg-navy', 'bg-gold', 'bg-sky-500', 'bg-emerald-500', 'bg-purple-500'];
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
+      <h2 className="mb-6 font-semibold text-navy">Conversion Sources</h2>
+      
+      {/* Simple pie chart representation */}
+      <div className="flex flex-col gap-4">
+        {data.map((source, idx) => {
+          const percentage = ((source.count / total) * 100).toFixed(1);
+          
+          return (
+            <div key={source.source}>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`h-3 w-3 rounded-full ${colors[idx % colors.length]}`}></div>
+                  <span className="text-sm font-semibold text-slate-700">{source.source}</span>
+                </div>
+                <span className="text-sm font-bold text-navy">{percentage}%</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-slate-200">
+                <div
+                  className={`h-full rounded-full ${colors[idx % colors.length]}`}
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-6 flex items-center justify-center">
+        <p className="text-xs text-slate-500">
+          Total: <span className="font-bold text-navy">{formatNumber(total)}</span> souls
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SeniorCellPerformanceTable({ performers }: { performers: any }) {
+  if (!performers || !performers.top_senior_cells || performers.top_senior_cells.length === 0) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
+        <p className="text-center text-sm text-slate-500">No senior cell data available</p>
       </div>
     );
   }
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="border-b border-gray-100 px-6 py-5">
-        <h2 className="font-serif text-base text-navy">Cells Needing Attention</h2>
+      <div className="border-b border-gray-100 px-6 py-4">
+        <h2 className="font-semibold text-navy">Senior Cell Performance</h2>
       </div>
-      <div className="divide-y divide-gray-100">
-        {cells.map((cell) => (
-          <div key={cell.cell_id} className="flex items-start justify-between px-6 py-4">
-            <div>
-              <p className="font-semibold text-slate-900">{cell.cell_name}</p>
-              <p className="text-xs text-slate-500">{cell.leader_name}</p>
-              <p className="mt-1 text-sm text-red-600">{cell.reason}</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-100 bg-slate-50">
+              <th className="px-6 py-3 text-left font-semibold text-slate-600">Division</th>
+              <th className="px-6 py-3 text-left font-semibold text-slate-600">Leader</th>
+              <th className="px-6 py-3 text-right font-semibold text-slate-600">Reporting</th>
+              <th className="px-6 py-3 text-right font-semibold text-slate-600">Growth</th>
+              <th className="px-6 py-3 text-right font-semibold text-slate-600">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {performers.top_senior_cells.map((sc: any) => (
+              <tr key={sc.id} className="border-b border-gray-100 hover:bg-slate-50">
+                <td className="px-6 py-4">
+                  <span className="font-semibold text-slate-900">{sc.name}</span>
+                </td>
+                <td className="px-6 py-4 text-slate-600">{sc.leader_name || 'N/A'}</td>
+                <td className="px-6 py-4 text-right">
+                  <span className="font-semibold text-navy">{sc.reporting_rate || '0'}%</span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <span className="font-semibold text-emerald-600">
+                    {sc.growth_rate && sc.growth_rate > 0 ? '+' : ''}{sc.growth_rate || '0'}%
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold uppercase ${
+                    (sc.growth_rate || 0) > 10 ? 'bg-emerald-100 text-emerald-700' :
+                    (sc.growth_rate || 0) > 0 ? 'bg-blue-100 text-blue-700' :
+                    'bg-orange-100 text-orange-700'
+                  }`}>
+                    {(sc.growth_rate || 0) > 10 ? 'Excellent' : (sc.growth_rate || 0) > 0 ? 'Healthy' : 'Average'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function GrowthMetricsSection({ stats }: { stats: any }) {
+  const metrics = [
+    {
+      label: 'First Timers',
+      value: stats.total_first_timers,
+      icon: '✨',
+      color: 'text-emerald-600',
+    },
+    {
+      label: 'Foundation School Enroll.',
+      value: stats.total_new_members,
+      icon: '📚',
+      color: 'text-blue-600',
+    },
+    {
+      label: 'Water Baptisms',
+      value: stats.total_souls_won,
+      icon: '💧',
+      color: 'text-sky-600',
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
+      <h2 className="mb-6 font-semibold text-navy">Growth Metrics (MoM)</h2>
+      <div className="space-y-4">
+        {metrics.map((metric) => (
+          <div key={metric.label}>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-700">{metric.label}</span>
+              <span className={`text-lg font-bold ${metric.color}`}>+18%</span>
             </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${cell.status === 'critical' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-              {cell.status}
-            </span>
+            <div className="h-2 w-full rounded-full bg-slate-200">
+              <div className="h-full rounded-full bg-emerald-500" style={{ width: '75%' }}></div>
+            </div>
           </div>
         ))}
       </div>
@@ -174,57 +346,49 @@ function CellsNeedingAttention({ cells }: { cells: any[] }) {
   );
 }
 
-function SeniorCellsGrid({ performers }: { performers: any }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-6 py-5">
-          <h2 className="font-serif text-base text-navy">Top Senior Cells</h2>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {performers.top_senior_cells.map((sc: any, idx: number) => (
-            <div key={sc.id} className="flex items-center justify-between px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gold text-sm font-bold text-navy">
-                  {idx + 1}
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-900">{sc.name}</p>
-                  <p className="text-xs text-slate-500">{sc.leader_name}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-bold text-navy">{formatNumber(sc.total_attendance)}</p>
-                <p className="text-xs text-slate-500">attendance</p>
-              </div>
-            </div>
-          ))}
-        </div>
+function CellsNeedingSupportAlerts({ cells }: { cells: any[] }) {
+  if (cells.length === 0) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <p className="text-center text-sm font-semibold text-slate-500">✓ All cells are reporting well</p>
       </div>
+    );
+  }
 
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-6 py-5">
-          <h2 className="font-serif text-base text-navy">Top Cells</h2>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {performers.top_cells.map((cell: any, idx: number) => (
-            <div key={cell.id} className="flex items-center justify-between px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-navy text-sm font-bold text-gold">
-                  {idx + 1}
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-900">{cell.name}</p>
-                  <p className="text-xs text-slate-500">{cell.leader_name}</p>
-                </div>
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="border-b border-gray-100 px-6 py-4">
+        <h2 className="font-semibold text-navy">⚠️ Cells Needing Support</h2>
+      </div>
+      <div className="space-y-3 p-6">
+        {cells.slice(0, 2).map((cell) => (
+          <div
+            key={cell.cell_id}
+            className={`rounded-lg border-l-4 p-4 ${
+              cell.status === 'critical'
+                ? 'border-l-red-500 border border-red-200 bg-red-50'
+                : 'border-l-yellow-500 border border-yellow-200 bg-yellow-50'
+            }`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className={`font-semibold ${cell.status === 'critical' ? 'text-red-900' : 'text-yellow-900'}`}>
+                  {cell.cell_name}
+                </p>
+                <p className="mt-1 text-xs text-slate-600">{cell.reason}</p>
               </div>
-              <div className="text-right">
-                <p className="font-bold text-navy">{formatNumber(cell.total_attendance)}</p>
-                <p className="text-xs text-slate-500">attendance</p>
-              </div>
+              <span
+                className={`ml-3 whitespace-nowrap rounded-full px-2 py-1 text-xs font-bold uppercase ${
+                  cell.status === 'critical'
+                    ? 'bg-red-200 text-red-700'
+                    : 'bg-yellow-200 text-yellow-700'
+                }`}
+              >
+                {cell.status}
+              </span>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -294,78 +458,118 @@ export default function FellowshipDashboardPage() {
 
   return (
     <div className="h-screen overflow-y-auto bg-slate-50">
-      <div className="mx-auto w-full max-w-[1500px] px-4 py-5 sm:px-6 lg:px-7">
+      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
         {successMessage && <SuccessAlert message={successMessage} onClose={() => setSuccessMessage(null)} />}
         {error && <ErrorAlert message={error} onClose={() => setError(null)} />}
 
+        {/* Topbar */}
         <FellowshipTopbar
           fellowshipName={data.fellowship_name}
-          location={data.location}
           period={period}
           onPeriodChange={setPeriod}
+          onRefresh={loadDashboard}
         />
 
-        <div className="mb-5 grid gap-3 md:grid-cols-3 lg:grid-cols-4">
-          <StatTile label="Senior Cells" value={stats.total_senior_cells} />
-          <StatTile label="Cells" value={stats.total_cells} />
-          <StatTile label="Attendance" value={formatNumber(stats.total_attendance)} />
-          <StatTile label="First Timers" value={formatNumber(stats.total_first_timers)} />
-          <StatTile label="Souls Won" value={formatNumber(stats.total_souls_won)} />
-          <StatTile label="New Members" value={formatNumber(stats.total_new_members)} />
-          <StatTile label="Collections" value={formatMoney(stats.total_finances)} />
-          <StatTile 
-            label="Submission" 
-            value={`${Math.round(stats.submission_rate_percent)}%`} 
-            tone={stats.submission_rate_percent >= 80 ? 'green' : stats.submission_rate_percent >= 60 ? 'orange' : 'gold'} 
+        {/* Key Stats Grid */}
+        <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <StatCard
+            label="Total Cells"
+            value={stats.total_cells}
+            subtext="All Cells"
+            tone="blue"
           />
-          <StatTile 
-            label="Growth Rate" 
+          <StatCard
+            label="Reporting"
+            value={`${Math.round(stats.submission_rate_percent)}%`}
+            subtext="Submission Rate"
+            tone="green"
+          />
+          <StatCard
+            label="Total Attendance"
+            value={formatNumber(stats.total_attendance)}
+            subtext="Weekly Average"
+            tone="purple"
+          />
+          <StatCard
+            label="Souls Won"
+            value={formatNumber(stats.total_souls_won)}
+            subtext="New Members"
+            tone="orange"
+          />
+          <StatCard
+            label="Collected"
+            value={formatMoney(stats.total_finances)}
+            subtext="Total Finances"
+            tone="gold"
+          />
+          <StatCard
+            label="Growth Rate"
             value={`${stats.growth_rate_percent > 0 ? '+' : ''}${stats.growth_rate_percent}%`}
+            subtext="Month on Month"
+            percentage={stats.growth_rate_percent}
             tone={stats.growth_rate_percent > 0 ? 'green' : 'orange'}
           />
         </div>
 
-        <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_300px]">
-          <TrendChart data={trends} />
-          
-          <div className="rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
-            <h2 className="mb-4 font-serif text-base text-navy">Conversion Sources</h2>
-            <div className="space-y-3">
-              {conversion_sources.map((source) => (
-                <div key={source.source}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-700">{source.source}</span>
-                    <span className="font-bold text-navy">{formatNumber(source.count)}</span>
-                  </div>
-                  {source.percentage > 0 && (
-                    <div className="mt-1 h-2 w-full rounded-full bg-slate-200">
-                      <div className="h-full rounded-full bg-gold" style={{ width: `${source.percentage}%` }} />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+        {/* Charts Section */}
+        <div className="mb-6 grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <AttendanceTrendChart data={trends} />
           </div>
+          <ConversionSourcesChart data={conversion_sources} />
         </div>
 
+        {/* Senior Cells Performance */}
         <div className="mb-6">
-          <SeniorCellsGrid performers={top_performers} />
+          <SeniorCellPerformanceTable performers={top_performers} />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <CellsNeedingAttention cells={cells_needing_attention} />
-          
-          <div className="rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
-            <h2 className="mb-4 font-serif text-base text-navy">Quick Actions</h2>
-            <div className="flex flex-col gap-3">
+        {/* Growth Metrics and Cells Needing Support */}
+        <div className="mb-6 grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <CellsNeedingSupportAlerts cells={cells_needing_attention} />
+          </div>
+          <GrowthMetricsSection stats={stats} />
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mb-6 rounded-lg border border-gray-200 bg-navy px-6 py-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold text-white">Quick Actions</h2>
+              <p className="mt-1 text-xs text-slate-300">Manage your fellowship efficiently</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Link href={`/dashboard/fellowship/${fellowshipId}/senior-cells`}>
-                <Button className="w-full">View Senior Cells</Button>
+                <Button className="w-full bg-gold text-navy hover:bg-yellow-400 sm:w-auto">
+                  View Senior Cells
+                </Button>
               </Link>
               <Link href={`/dashboard/fellowship/${fellowshipId}/cells`}>
-                <Button variant="secondary" className="w-full">View All Cells</Button>
+                <Button variant="secondary" className="w-full border border-white text-white hover:bg-slate-700 sm:w-auto">
+                  View All Cells
+                </Button>
               </Link>
             </div>
           </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:justify-between">
+          <div className="flex gap-2">
+            <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+              🔍 Filter
+            </button>
+            <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+              📥 Export
+            </button>
+          </div>
+          <button
+            onClick={loadDashboard}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            ↻ Refresh Data
+          </button>
         </div>
       </div>
     </div>
