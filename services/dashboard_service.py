@@ -4,7 +4,7 @@ from datetime import datetime, date, timedelta
 from uuid import UUID
 from collections import defaultdict
  
-from models import Cell, CellReport, SeniorCell, Fellowship, Zone
+from models import Cell, CellReport, SeniorCell, Fellowship, Zone, User
 from utils.helpers import get_current_week
  
  
@@ -276,10 +276,21 @@ class DashboardService:
         # Get conversion sources
         conversion_sources = await DashboardService._get_conversion_sources(reports)
  
+        # Get pastor name if pastor is assigned
+        pastor_name = "Fellowship Pastor"
+        if fellowship.pastor_id:
+            result = await session.execute(
+                select(User).where(User.id == fellowship.pastor_id)
+            )
+            pastor = result.scalar_one_or_none()
+            if pastor:
+                pastor_name = pastor.name
+ 
         return {
             "dashboard_type": "fellowship_pastor",
             "fellowship_id": str(fellowship.id),
             "fellowship_name": fellowship.name,
+            "pastor_name": pastor_name,
             "location": fellowship.location,
             "period": period,
             "period_start": period_start.isoformat(),
