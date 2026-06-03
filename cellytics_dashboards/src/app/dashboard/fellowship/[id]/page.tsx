@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/Button';
+import { DonutChart } from '@/components/DonutChart';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SuccessAlert } from '@/components/SuccessAlert';
@@ -17,6 +18,7 @@ type TrendPoint = { week: string; attendance: number; first_timers: number; soul
 interface FellowshipDashboardData {
   fellowship_id: string;
   fellowship_name: string;
+  pastor_name: string;
   location: string;
   period: string;
   period_start: string;
@@ -65,39 +67,33 @@ function StatTile({ label, value, tone = 'gold' }: { label: string; value: strin
 
 function FellowshipTopbar({
   fellowshipName,
+  pastorName,
   location,
   period,
   onPeriodChange,
 }: {
   fellowshipName: string;
+  pastorName: string;
   location: string;
   period: Period;
   onPeriodChange: (period: Period) => void;
 }) {
   return (
-    <div className="mb-5 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-navy text-sm font-bold text-gold">
-            F
-          </div>
-          <div className="min-w-0">
-            <p className="truncate font-serif text-base text-navy">{fellowshipName} Dashboard</p>
-            <p className="text-xs text-slate-500">{location} • Your fellowship command center</p>
-          </div>
+    <div className="mb-6 rounded-xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-3xl font-bold text-navy">Welcome, {pastorName}.</h1>
+          <p className="mt-1 text-slate-500">{fellowshipName} • {location}</p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={period}
-            onChange={(event) => onPeriodChange(event.target.value as Period)}
-            className="rounded-full border border-gray-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm"
-          >
-            {(['week', 'month', 'year', 'all'] as Period[]).map((option) => (
-              <option key={option} value={option}>{getPeriodLabel(option)}</option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={period}
+          onChange={(event) => onPeriodChange(event.target.value as Period)}
+          className="rounded-full border border-gray-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+        >
+          {(['week', 'month', 'year', 'all'] as Period[]).map((option) => (
+            <option key={option} value={option}>{getPeriodLabel(option)}</option>
+          ))}
+        </select>
       </div>
     </div>
   );
@@ -300,24 +296,25 @@ export default function FellowshipDashboardPage() {
 
         <FellowshipTopbar
           fellowshipName={data.fellowship_name}
+          pastorName={data.pastor_name}
           location={data.location}
           period={period}
           onPeriodChange={setPeriod}
         />
 
         <div className="mb-5 grid gap-3 md:grid-cols-3 lg:grid-cols-4">
-          <StatTile label="Senior Cells" value={stats.total_senior_cells} />
-          <StatTile label="Cells" value={stats.total_cells} />
-          <StatTile label="Attendance" value={formatNumber(stats.total_attendance)} />
-          <StatTile label="First Timers" value={formatNumber(stats.total_first_timers)} />
-          <StatTile label="Souls Won" value={formatNumber(stats.total_souls_won)} />
-          <StatTile label="New Members" value={formatNumber(stats.total_new_members)} />
-          <StatTile label="Collections" value={formatMoney(stats.total_finances)} />
+          <StatTile label="Total Cells" value={stats.total_cells} />
           <StatTile 
-            label="Submission" 
-            value={`${Math.round(stats.submission_rate_percent)}%`} 
+            label="Reporting" 
+            value={`${stats.cells_reported}/${stats.total_cells}`} 
             tone={stats.submission_rate_percent >= 80 ? 'green' : stats.submission_rate_percent >= 60 ? 'orange' : 'gold'} 
           />
+          <StatTile label="Total Attendance" value={formatNumber(stats.total_attendance)} />
+          <StatTile label="Souls Won" value={formatNumber(stats.total_souls_won)} />
+          <StatTile label="Collected" value={formatMoney(stats.total_finances)} />
+          <StatTile label="First Timers" value={formatNumber(stats.total_first_timers)} />
+          <StatTile label="New Members" value={formatNumber(stats.total_new_members)} />
+          <StatTile label="Senior Cells" value={stats.total_senior_cells} />
           <StatTile 
             label="Growth Rate" 
             value={`${stats.growth_rate_percent > 0 ? '+' : ''}${stats.growth_rate_percent}%`}
@@ -325,27 +322,22 @@ export default function FellowshipDashboardPage() {
           />
         </div>
 
-        <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_300px]">
+        <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_400px]">
           <TrendChart data={trends} />
           
-          <div className="rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
-            <h2 className="mb-4 font-serif text-base text-navy">Conversion Sources</h2>
-            <div className="space-y-3">
-              {conversion_sources.map((source) => (
-                <div key={source.source}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-700">{source.source}</span>
-                    <span className="font-bold text-navy">{formatNumber(source.count)}</span>
-                  </div>
-                  {source.percentage > 0 && (
-                    <div className="mt-1 h-2 w-full rounded-full bg-slate-200">
-                      <div className="h-full rounded-full bg-gold" style={{ width: `${source.percentage}%` }} />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          <DonutChart
+            data={conversion_sources.map((source, index) => {
+              const colors = ['#1E3A8A', '#F59E0B', '#10B981', '#EF4444'];
+              return {
+                label: source.source,
+                value: source.count,
+                color: colors[index % colors.length],
+              };
+            })}
+            centerLabel="Total"
+            centerValue={conversion_sources.reduce((sum, s) => sum + s.count, 0).toLocaleString()}
+            title="Conversion Sources"
+          />
         </div>
 
         <div className="mb-6">
