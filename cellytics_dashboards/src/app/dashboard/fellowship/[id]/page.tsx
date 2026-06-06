@@ -71,12 +71,14 @@ function FellowshipTopbar({
   location,
   period,
   onPeriodChange,
+  fellowshipId,
 }: {
   fellowshipName: string;
   pastorName: string;
   location: string;
   period: Period;
   onPeriodChange: (period: Period) => void;
+  fellowshipId?: string;
 }) {
   return (
     <div className="mb-6 rounded-xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
@@ -84,6 +86,11 @@ function FellowshipTopbar({
         <div>
           <h1 className="font-serif text-3xl font-bold text-navy">Welcome, {pastorName}.</h1>
           <p className="mt-1 text-slate-500">{fellowshipName} • {location}</p>
+          {fellowshipId && (
+            <Link href={`/dashboard/fellowship/${fellowshipId}/management`} className="mt-3 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+              📋 Management
+            </Link>
+          )}
         </div>
         <select
           value={period}
@@ -300,6 +307,7 @@ export default function FellowshipDashboardPage() {
           location={data.location}
           period={period}
           onPeriodChange={setPeriod}
+          fellowshipId={fellowshipId}
         />
 
         <div className="mb-5 grid gap-3 md:grid-cols-3 lg:grid-cols-4">

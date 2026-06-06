@@ -92,3 +92,64 @@ export const getErrorMessage = (error: unknown): string => {
   }
   return 'An unexpected error occurred';
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MANAGEMENT API METHODS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const managementAPI = {
+  /**
+   * Assign a cell to a senior cell
+   */
+  async assignCellToSeniorCell(cellId: string, seniorCellId: string) {
+    return apiClient.post(`/admin/cells/${cellId}/assign-senior-cell`, null, {
+      params: { senior_cell_id: seniorCellId }
+    });
+  },
+
+  /**
+   * Send in-app notification to poke a cell leader
+   */
+  async pokeCellLeader(userId: string, message?: string) {
+    return apiClient.post(`/admin/users/${userId}/poke`, null, {
+      params: { ...(message && { message }) }
+    });
+  },
+
+  /**
+   * Validate a cell report
+   */
+  async validateCellReport(reportId: string) {
+    return apiClient.post(`/admin/cell-reports/${reportId}/validate`);
+  },
+
+  /**
+   * Confirm finances for a cell report
+   */
+  async confirmReportFinances(reportId: string) {
+    return apiClient.post(`/admin/cell-reports/${reportId}/confirm-finances`);
+  },
+
+  /**
+   * Create a new senior cell
+   */
+  async createSeniorCell(fellowshipId: string, data: { name: string; leader_id?: string }) {
+    return apiClient.post(`/admin/senior-cells`, data, {
+      params: { fellowship_id: fellowshipId }
+    });
+  },
+
+  /**
+   * Update a senior cell
+   */
+  async updateSeniorCell(seniorCellId: string, data: { name?: string; leader_id?: string }) {
+    return apiClient.patch(`/admin/senior-cells/${seniorCellId}`, data);
+  },
+
+  /**
+   * Delete a senior cell
+   */
+  async deleteSeniorCell(seniorCellId: string) {
+    return apiClient.delete(`/admin/senior-cells/${seniorCellId}`);
+  }
+};
