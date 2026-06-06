@@ -253,14 +253,6 @@ class CellReport(Base):
     other_info = Column(Text, nullable=True)
     photo_urls = Column(JSONB, default=[], nullable=False)
 
-    # Validation & Confirmation
-    is_validated = Column(Boolean, default=False)
-    validated_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    validated_at = Column(DateTime(timezone=True), nullable=True)
-    finance_confirmed = Column(Boolean, default=False)
-    finance_confirmed_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    finance_confirmed_at = Column(DateTime(timezone=True), nullable=True)
-
     # Audit
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
