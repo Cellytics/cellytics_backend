@@ -1,3 +1,6 @@
+
+
+
 """
 Seed Script for BLW Cell Track Database
 Populates Zone B (Cameroon) with realistic test data
@@ -6,7 +9,7 @@ Run once: python seed_database.py
 
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import text
+from sqlalchemy import text, select
 from datetime import datetime, date, timedelta
 import os
 from dotenv import load_dotenv
@@ -21,6 +24,150 @@ load_dotenv()
 # Setup async session
 engine = create_async_engine(ASYNC_DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+# ═══════════════════════════════════════════════════════════
+# UBA-SPECIFIC DATA
+# ═══════════════════════════════════════════════════════════
+
+UBA_SENIOR_CELLS = [
+    "General Assembly",
+    "Zoe",
+    "Mimshack",
+    "Prolific Overcomers",
+    "Phronetic Overcomers",
+]
+
+# Each senior cell gets 7 cells named e.g. "General Assembly GA1" ... "General Assembly GA7"
+# Abbreviation map for the cell suffix
+UBA_SENIOR_CELL_ABBREVS = {
+    "General Assembly": "GA",
+    "Zoe": "Zoe",
+    "Mimshack": "Mim",
+    "Prolific Overcomers": "PO",
+    "Phronetic Overcomers": "PhO",
+}
+
+
+async def seed_uba_specific(session: AsyncSession, zone_b_id: int):
+    """
+    Find BLW University of Bamenda fellowship and replace its senior cells / cells
+    with the exact structure specified. Does NOT touch any other fellowship.
+    """
+
+    print("\n🎯 Seeding UBA-specific structure...\n")
+
+    # ── Find UBA fellowship ─────────────────────────────────
+    result = await session.execute(
+        select(Fellowship).where(Fellowship.name == "BLW University Of Bamenda")
+    )
+    uba = result.scalar_one_or_none()
+
+    if uba is None:
+        print("❌ BLW University Of Bamenda fellowship not found. Aborting UBA seed.")
+        return
+
+    print(f"✅ Found fellowship: {uba.name} (id={uba.id})")
+
+    # ── Wipe existing UBA senior cells (cascades to cells & users) ──
+    existing_senior_cells = await session.execute(
+        select(SeniorCell).where(SeniorCell.fellowship_id == uba.id)
+    )
+    for sc in existing_senior_cells.scalars().all():
+        # Delete cell leaders for each cell under this senior cell
+        cells_res = await session.execute(
+            select(Cell).where(Cell.senior_cell_id == sc.id)
+        )
+        for cell in cells_res.scalars().all():
+            await session.execute(
+                text("DELETE FROM users WHERE cell_id = :cid"), {"cid": cell.id}
+            )
+            await session.execute(
+                text("DELETE FROM cell_reports WHERE cell_id = :cid"), {"cid": cell.id}
+            )
+            await session.delete(cell)
+
+        # Delete senior cell leader
+        await session.execute(
+            text("DELETE FROM users WHERE senior_cell_id = :scid"), {"scid": sc.id}
+        )
+        await session.delete(sc)
+
+    await session.flush()
+    print("🗑️  Cleared old UBA senior cells, cells, and their leaders\n")
+
+    # ── Counters (start high to avoid phone collisions with generic seed) ──
+    # Generic seed uses +237690300001..012 for senior CLs and +237690400001..072 for cell leaders
+    # UBA-specific leaders will use 900-series to be safe
+    sc_leader_counter = 900
+    cell_leader_counter = 900
+
+    meeting_days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+    for sc_name in UBA_SENIOR_CELLS:
+        abbrev = UBA_SENIOR_CELL_ABBREVS[sc_name]
+
+        # Create senior cell
+        senior_cell = SeniorCell(
+            name=sc_name,
+            fellowship_id=uba.id,
+        )
+        session.add(senior_cell)
+        await session.flush()
+
+        # Create senior cell leader
+        sc_leader_counter += 1
+        sc_leader = User(
+            phone=f"+2376909{sc_leader_counter:05d}",
+            name=f"Elder - {sc_name}",
+            pin_hash=hash_pin("123456"),
+            role="senior_cell_leader",
+            senior_cell_id=senior_cell.id,
+            fellowship_id=uba.id,
+            zone_id=zone_b_id,
+            is_active=True,
+        )
+        session.add(sc_leader)
+        await session.flush()
+
+        print(f"  ✅ Senior Cell: {sc_name}")
+
+        # Create 7 cells under this senior cell
+        for cell_num in range(1, 8):
+            cell_name = f"{sc_name} {abbrev}{cell_num}"
+            cell = Cell(
+                name=cell_name,
+                senior_cell_id=senior_cell.id,
+                default_meeting_day=meeting_days[(cell_num - 1) % len(meeting_days)],
+                meeting_time=None,
+            )
+            session.add(cell)
+            await session.flush()
+
+            # Create cell leader
+            cell_leader_counter += 1
+            cell_leader = User(
+                phone=f"+2376908{cell_leader_counter:05d}",
+                name=f"Leader - {cell_name}",
+                pin_hash=hash_pin("123456"),
+                role="cell_leader",
+                cell_id=cell.id,
+                senior_cell_id=senior_cell.id,
+                fellowship_id=uba.id,
+                zone_id=zone_b_id,
+                is_active=True,
+            )
+            session.add(cell_leader)
+
+            print(f"      ✅ Cell: {cell_name}")
+
+        await session.flush()
+
+    await session.flush()
+
+    print(f"\n✅ UBA structure seeded:")
+    print(f"   Senior Cells : {len(UBA_SENIOR_CELLS)}")
+    print(f"   Cells        : {len(UBA_SENIOR_CELLS) * 7}")
+    print(f"   Leaders      : {len(UBA_SENIOR_CELLS) + len(UBA_SENIOR_CELLS) * 7}")
 
 
 async def seed_database():
@@ -168,13 +315,14 @@ async def seed_database():
         
         # ───────────────────────────────────────────────────────
         # CREATE SENIOR CELLS (2 per fellowship = 12 total)
+        # NOTE: UBA (fellowships[0]) is skipped here — handled by seed_uba_specific()
         # ───────────────────────────────────────────────────────
         
         senior_cells = []
         senior_cl_count = 0
         
         print()
-        for fellowship in fellowships[:6]:  # First 6 fellowships
+        for fellowship in fellowships[1:6]:  # fellowships[0] = UBA, seeded separately below
             for j in range(2):
                 division = chr(65 + j)  # A, B
                 senior_cell = SeniorCell(
@@ -201,10 +349,10 @@ async def seed_database():
                 print(f"  ✅ Senior Cell: {senior_cell.name}")
         
         await session.flush()
-        print(f"\n✅ {len(senior_cells)} Senior Cells + {senior_cl_count} Leaders created\n")
+        print(f"\n✅ {len(senior_cells)} Senior Cells + {senior_cl_count} Leaders created (non-UBA)\n")
         
         # ───────────────────────────────────────────────────────
-        # CREATE CELLS (6 per senior cell = 72 total)
+        # CREATE CELLS (6 per senior cell = for non-UBA senior cells)
         # ───────────────────────────────────────────────────────
         
         cells = []
@@ -239,10 +387,16 @@ async def seed_database():
                 session.add(cell_leader)
         
         await session.flush()
-        print(f"✅ {len(cells)} Cells + {cell_leader_count} Cell Leaders created\n")
+        print(f"✅ {len(cells)} Cells + {cell_leader_count} Cell Leaders created (non-UBA)\n")
+
+        # ───────────────────────────────────────────────────────
+        # SEED UBA-SPECIFIC STRUCTURE
+        # ───────────────────────────────────────────────────────
+
+        await seed_uba_specific(session, zone_b_id)
         
         # ───────────────────────────────────────────────────────
-        # CREATE SAMPLE REPORTS (30 cells with reports)
+        # CREATE SAMPLE REPORTS (30 non-UBA cells with reports)
         # ───────────────────────────────────────────────────────
         
         report_count = 0
@@ -302,18 +456,22 @@ async def seed_database():
         await session.flush()
         await session.commit()
         
-        print(f"✅ {report_count} Sample reports created\n")
+        print(f"\n✅ {report_count} Sample reports created\n")
         
+        uba_cell_count = len(UBA_SENIOR_CELLS) * 7
+        uba_sc_count = len(UBA_SENIOR_CELLS)
+
         print("=" * 60)
         print("🎉 DATABASE SEEDING COMPLETE!")
         print("=" * 60)
         print("\n📊 SUMMARY:")
         print(f"  Zones:                1")
         print(f"  Fellowships:          {len(fellowships)}")
-        print(f"  Senior Cells:         {len(senior_cells)}")
-        print(f"  Cells:                {len(cells)}")
-        print(f"  Total Users:          {1 + 1 + len(fellowships) + len(senior_cells) + len(cells)}")
-        print(f"  Sample Reports:       {report_count}")
+        print(f"  Senior Cells (non-UBA): {len(senior_cells)}")
+        print(f"  Senior Cells (UBA):     {uba_sc_count}")
+        print(f"  Cells (non-UBA):        {len(cells)}")
+        print(f"  Cells (UBA):            {uba_cell_count}")
+        print(f"  Sample Reports:         {report_count}")
         
         print("\n📱 TEST CREDENTIALS:")
         print(f"  System Admin:         +237690000000 / 123456")
@@ -321,6 +479,8 @@ async def seed_database():
         print(f"  Fellowship Pastor:    +237690200000 / 123456")
         print(f"  Senior Cell Leader:   +237690300001 / 123456")
         print(f"  Cell Leader:          +237690400001 / 123456")
+        print(f"  UBA Senior CL:        +2376909{900+1:05d} / 123456")
+        print(f"  UBA Cell Leader:      +2376908{900+1:05d} / 123456")
         
         print("\n🔗 Test Login: http://localhost:8000/docs")
         print("=" * 60)
@@ -328,6 +488,16 @@ async def seed_database():
 
 if __name__ == "__main__":
     asyncio.run(seed_database())
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -346,16 +516,14 @@ if __name__ == "__main__":
 
 # import asyncio
 # from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+# from sqlalchemy import text
 # from datetime import datetime, date, timedelta
-# from uuid import uuid4
 # import os
 # from dotenv import load_dotenv
 
 # # Import your models
 # from database import ASYNC_DATABASE_URL
-# from models import (
-#     Base, Zone, Fellowship, SeniorCell, Cell, User, CellReport
-# )
+# from models import Base, Zone, Fellowship, SeniorCell, Cell, User, CellReport
 # from auth import hash_pin
 
 # load_dotenv()
@@ -368,17 +536,44 @@ if __name__ == "__main__":
 # async def seed_database():
 #     """Populate database with test data"""
     
-#     async with engine.begin() as conn:
-#         # Drop and recreate all tables
-#         await conn.run_sync(Base.metadata.drop_all)
-#         await conn.run_sync(Base.metadata.create_all)
+#     # ═══════════════════════════════════════════════════════════
+#     # STEP 1: DROP ALL TABLES (HANDLE CIRCULAR DEPS)
+#     # ═══════════════════════════════════════════════════════════
     
-#     async with AsyncSessionLocal() as session:
-#         print("🌱 Seeding Zone B (Cameroon)...")
+#     async with engine.begin() as conn:
+#         print("🗑️  Dropping existing tables...")
+        
+#         # Drop in reverse order of dependencies
+#         await conn.execute(text("DROP TABLE IF EXISTS cell_reports CASCADE;"))
+#         await conn.execute(text("DROP TABLE IF EXISTS sync_queue CASCADE;"))
+#         await conn.execute(text("DROP TABLE IF EXISTS notifications CASCADE;"))
+#         await conn.execute(text("DROP TABLE IF EXISTS users CASCADE;"))
+#         await conn.execute(text("DROP TABLE IF EXISTS cells CASCADE;"))
+#         await conn.execute(text("DROP TABLE IF EXISTS senior_cells CASCADE;"))
+#         await conn.execute(text("DROP TABLE IF EXISTS fellowships CASCADE;"))
+#         await conn.execute(text("DROP TABLE IF EXISTS zones CASCADE;"))
+#         await conn.execute(text("DROP TABLE IF EXISTS regions CASCADE;"))
+        
+#         print("✅ Tables dropped")
         
 #         # ═══════════════════════════════════════════════════════════
-#         # CREATE ZONE B
+#         # STEP 2: RECREATE ALL TABLES
 #         # ═══════════════════════════════════════════════════════════
+        
+#         print("🏗️  Creating tables...")
+#         await conn.run_sync(Base.metadata.create_all)
+#         print("✅ Tables created")
+    
+#     # ═══════════════════════════════════════════════════════════
+#     # STEP 3: POPULATE DATA
+#     # ═══════════════════════════════════════════════════════════
+    
+#     async with AsyncSessionLocal() as session:
+#         print("\n🌱 Seeding Zone B (Cameroon)...\n")
+        
+#         # ───────────────────────────────────────────────────────
+#         # CREATE ZONE B
+#         # ───────────────────────────────────────────────────────
         
 #         zone_b = Zone(
 #             name="Cameroon Zone B",
@@ -390,12 +585,12 @@ if __name__ == "__main__":
 #         zone_b_id = zone_b.id
 #         print(f"✅ Zone B created: {zone_b_id}")
         
-#         # ═══════════════════════════════════════════════════════════
-#         # CREATE SYSTEM ADMIN
-#         # ═══════════════════════════════════════════════════════════
+#         # ───────────────────────────────────────────────────────
+#         # CREATE SYSTEM ADMIN (NO ZONE ASSIGNMENT)
+#         # ───────────────────────────────────────────────────────
         
 #         system_admin = User(
-#             phone="+2376981364856",
+#             phone="+237690000000",
 #             name="System Admin",
 #             pin_hash=hash_pin("123456"),
 #             role="system_admin",
@@ -405,9 +600,9 @@ if __name__ == "__main__":
 #         await session.flush()
 #         print(f"✅ System Admin created: +237690000000 / 123456")
         
-#         # ═══════════════════════════════════════════════════════════
-#         # CREATE ZONAL ADMIN
-#         # ═══════════════════════════════════════════════════════════
+#         # ───────────────────────────────────────────────────────
+#         # CREATE ZONAL ADMIN (ZONE ASSIGNED)
+#         # ───────────────────────────────────────────────────────
         
 #         zonal_admin = User(
 #             phone="+237690100001",
@@ -419,11 +614,11 @@ if __name__ == "__main__":
 #         )
 #         session.add(zonal_admin)
 #         await session.flush()
-#         print(f"✅ Zonal Admin created: +237690100001 / 123456")
+#         print(f"✅ Zonal Admin created: +237690100001 / 123456\n")
         
-#         # ═══════════════════════════════════════════════════════════
+#         # ───────────────────────────────────────────────────────
 #         # CREATE FELLOWSHIPS (9 total)
-#         # ═══════════════════════════════════════════════════════════
+#         # ───────────────────────────────────────────────────────
         
 #         fellowships_data = [
 #             ("BLW University Of Bamenda", "Bambili, North West Region"),
@@ -449,9 +644,9 @@ if __name__ == "__main__":
 #             fellowships.append(fellowship)
 #             print(f"  ✅ Fellowship {i+1}: {name}")
         
-#         # ═══════════════════════════════════════════════════════════
+#         # ───────────────────────────────────────────────────────
 #         # CREATE FELLOWSHIP PASTORS (1 per fellowship)
-#         # ═══════════════════════════════════════════════════════════
+#         # ───────────────────────────────────────────────────────
         
 #         pastor_names = [
 #             "Pastor Stanley N",
@@ -465,6 +660,7 @@ if __name__ == "__main__":
 #             "Pastor Michael Congo",
 #         ]
         
+#         print()
 #         for i, (fellowship, pastor_name) in enumerate(zip(fellowships, pastor_names)):
 #             pastor = User(
 #                 phone=f"+237690200{i:03d}",
@@ -480,14 +676,15 @@ if __name__ == "__main__":
         
 #         await session.flush()
         
-#         # ═══════════════════════════════════════════════════════════
-#         # CREATE SENIOR CELLS (2 per fellowship = 18 total, use 12 for MVP)
-#         # ═══════════════════════════════════════════════════════════
+#         # ───────────────────────────────────────────────────────
+#         # CREATE SENIOR CELLS (2 per fellowship = 12 total)
+#         # ───────────────────────────────────────────────────────
         
 #         senior_cells = []
 #         senior_cl_count = 0
         
-#         for fellowship in fellowships[:6]:  # First 6 fellowships (12 senior cells)
+#         print()
+#         for fellowship in fellowships[:6]:  # First 6 fellowships
 #             for j in range(2):
 #                 division = chr(65 + j)  # A, B
 #                 senior_cell = SeniorCell(
@@ -502,7 +699,7 @@ if __name__ == "__main__":
 #                 senior_cl_count += 1
 #                 senior_cl = User(
 #                     phone=f"+237690300{senior_cl_count:03d}",
-#                     name=f"Elder {chr(64 + senior_cl_count)} - {senior_cell.name}",
+#                     name=f"Elder {chr(64 + senior_cl_count)} - {division}",
 #                     pin_hash=hash_pin("123456"),
 #                     role="senior_cell_leader",
 #                     senior_cell_id=senior_cell.id,
@@ -514,22 +711,23 @@ if __name__ == "__main__":
 #                 print(f"  ✅ Senior Cell: {senior_cell.name}")
         
 #         await session.flush()
-#         print(f"✅ {len(senior_cells)} Senior Cells + {senior_cl_count} Leaders created")
+#         print(f"\n✅ {len(senior_cells)} Senior Cells + {senior_cl_count} Leaders created\n")
         
-#         # ═══════════════════════════════════════════════════════════
+#         # ───────────────────────────────────────────────────────
 #         # CREATE CELLS (6 per senior cell = 72 total)
-#         # ═══════════════════════════════════════════════════════════
+#         # ───────────────────────────────────────────────────────
         
 #         cells = []
 #         cell_leader_count = 0
+#         meeting_days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
         
 #         for senior_cell in senior_cells:
-#             for cell_num in range(1, 7):  # 6 cells per senior cell
+#             for cell_num in range(1, 7):
 #                 cell = Cell(
-#                     name=f"{senior_cell.name} - Cell {cell_num}",
+#                     name=f"Cell {cell_num} - {senior_cell.name[:30]}",
 #                     senior_cell_id=senior_cell.id,
-#                     default_meeting_day=["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][cell_num - 1],
-#                     meeting_time=None  # Set later if needed
+#                     default_meeting_day=meeting_days[cell_num - 1],
+#                     meeting_time=None
 #                 )
 #                 session.add(cell)
 #                 await session.flush()
@@ -539,7 +737,7 @@ if __name__ == "__main__":
 #                 cell_leader_count += 1
 #                 cell_leader = User(
 #                     phone=f"+237690400{cell_leader_count:03d}",
-#                     name=f"Brother/Sister {cell_leader_count} - {cell.name}",
+#                     name=f"Leader {cell_leader_count}",
 #                     pin_hash=hash_pin("123456"),
 #                     role="cell_leader",
 #                     cell_id=cell.id,
@@ -551,27 +749,30 @@ if __name__ == "__main__":
 #                 session.add(cell_leader)
         
 #         await session.flush()
-#         print(f"✅ {len(cells)} Cells + {cell_leader_count} Cell Leaders created")
+#         print(f"✅ {len(cells)} Cells + {cell_leader_count} Cell Leaders created\n")
         
-#         # ═══════════════════════════════════════════════════════════
-#         # CREATE SAMPLE REPORTS (Submit reports for some cells)
-#         # ═══════════════════════════════════════════════════════════
+#         # ───────────────────────────────────────────────────────
+#         # CREATE SAMPLE REPORTS (30 cells with reports)
+#         # ───────────────────────────────────────────────────────
         
-#         # Submit reports for first 30 cells
 #         report_count = 0
         
 #         for i, cell in enumerate(cells[:30]):
 #             # Get cell leader
-#             result = await session.execute(
-#                 __import__('sqlalchemy').select(User).where(User.cell_id == cell.id)
-#             )
-#             cell_leader = result.scalar_one()
+#             cell_leader = None
+#             for user in session.identity_map.values():
+#                 if isinstance(user, User) and user.cell_id == cell.id:
+#                     cell_leader = user
+#                     break
             
-#             # Create report for last Sunday
+#             if cell_leader is None:
+#                 continue
+            
+#             # Create report
 #             meeting_date = date.today() - timedelta(days=date.today().weekday() + 1)
 #             week_start = meeting_date - timedelta(days=meeting_date.weekday())
 #             week_end = week_start + timedelta(days=6)
-#             submission_deadline = datetime.combine(week_end, __import__('datetime').time(9, 0, 0))
+#             submission_deadline = datetime.combine(week_end, datetime.min.time()).replace(hour=9)
             
 #             report = CellReport(
 #                 cell_id=cell.id,
@@ -601,47 +802,356 @@ if __name__ == "__main__":
 #                 finance_partnership=0,
 #                 finance_first_fruits=0,
 #                 finance_total=19000,
-#                 testimonies=f"Cell {i} witnessed {i % 3} souls won this week!",
+#                 testimonies=f"Amazing week with {i % 3} souls won!",
 #                 challenges="None major",
-#                 pastors_remarks="Good work team"
+#                 pastors_remarks="Excellent work"
 #             )
 #             session.add(report)
 #             report_count += 1
         
 #         await session.flush()
-#         print(f"✅ {report_count} Sample reports created")
-        
-#         # ═══════════════════════════════════════════════════════════
-#         # COMMIT ALL
-#         # ═══════════════════════════════════════════════════════════
-        
 #         await session.commit()
         
-#         print("\n" + "="*60)
+#         print(f"✅ {report_count} Sample reports created\n")
+        
+#         print("=" * 60)
 #         print("🎉 DATABASE SEEDING COMPLETE!")
-#         print("="*60)
+#         print("=" * 60)
 #         print("\n📊 SUMMARY:")
-#         print(f"  Zones:           1 (Zone B)")
-#         print(f"  Fellowships:     {len(fellowships)}")
-#         print(f"  Senior Cells:    {len(senior_cells)}")
-#         print(f"  Cells:           {len(cells)}")
-#         print(f"  Users:           {1 + 1 + len(fellowships) + len(senior_cells) + len(cells)} total")
-#         print(f"    - System Admin:        1")
-#         print(f"    - Zonal Admins:        1")
-#         print(f"    - Fellowship Pastors:  {len(fellowships)}")
-#         print(f"    - Senior Cell Leaders: {len(senior_cells)}")
-#         print(f"    - Cell Leaders:        {len(cells)}")
-#         print(f"  Reports:         {report_count} sample")
+#         print(f"  Zones:                1")
+#         print(f"  Fellowships:          {len(fellowships)}")
+#         print(f"  Senior Cells:         {len(senior_cells)}")
+#         print(f"  Cells:                {len(cells)}")
+#         print(f"  Total Users:          {1 + 1 + len(fellowships) + len(senior_cells) + len(cells)}")
+#         print(f"  Sample Reports:       {report_count}")
         
 #         print("\n📱 TEST CREDENTIALS:")
-#         print(f"  System Admin:    +237690000000 / 123456")
-#         print(f"  Zonal Admin:     +237690100001 / 123456")
-#         print(f"  Fellowship Pastor: +237690200000 / 123456 (any pastor)")
-#         print(f"  Senior Cell Leader: +237690300001 / 123456 (any senior CL)")
-#         print(f"  Cell Leader:     +237690400001 / 123456 (any cell leader)")
+#         print(f"  System Admin:         +237690000000 / 123456")
+#         print(f"  Zonal Admin:          +237690100001 / 123456")
+#         print(f"  Fellowship Pastor:    +237690200000 / 123456")
+#         print(f"  Senior Cell Leader:   +237690300001 / 123456")
+#         print(f"  Cell Leader:          +237690400001 / 123456")
         
-#         print("\n🔗 Ready to test at: http://localhost:8000/docs")
+#         print("\n🔗 Test Login: http://localhost:8000/docs")
+#         print("=" * 60)
 
 
 # if __name__ == "__main__":
 #     asyncio.run(seed_database())
+
+
+
+
+
+
+
+
+
+
+# # """
+# # Seed Script for BLW Cell Track Database
+# # Populates Zone B (Cameroon) with realistic test data
+# # Run once: python seed_database.py
+# # """
+
+# # import asyncio
+# # from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+# # from datetime import datetime, date, timedelta
+# # from uuid import uuid4
+# # import os
+# # from dotenv import load_dotenv
+
+# # # Import your models
+# # from database import ASYNC_DATABASE_URL
+# # from models import (
+# #     Base, Zone, Fellowship, SeniorCell, Cell, User, CellReport
+# # )
+# # from auth import hash_pin
+
+# # load_dotenv()
+
+# # # Setup async session
+# # engine = create_async_engine(ASYNC_DATABASE_URL, echo=False)
+# # AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
+# # async def seed_database():
+# #     """Populate database with test data"""
+    
+# #     async with engine.begin() as conn:
+# #         # Drop and recreate all tables
+# #         await conn.run_sync(Base.metadata.drop_all)
+# #         await conn.run_sync(Base.metadata.create_all)
+    
+# #     async with AsyncSessionLocal() as session:
+# #         print("🌱 Seeding Zone B (Cameroon)...")
+        
+# #         # ═══════════════════════════════════════════════════════════
+# #         # CREATE ZONE B
+# #         # ═══════════════════════════════════════════════════════════
+        
+# #         zone_b = Zone(
+# #             name="Cameroon Zone B",
+# #             location="Cameroon (Bamenda, Yaounde, Dschang, CAR, Eq. Guinea, Sao Tome)",
+# #             description="BLW Cameroon Zone B : East & Central Africa Region"
+# #         )
+# #         session.add(zone_b)
+# #         await session.flush()
+# #         zone_b_id = zone_b.id
+# #         print(f"✅ Zone B created: {zone_b_id}")
+        
+# #         # ═══════════════════════════════════════════════════════════
+# #         # CREATE SYSTEM ADMIN
+# #         # ═══════════════════════════════════════════════════════════
+        
+# #         system_admin = User(
+# #             phone="+2376981364856",
+# #             name="System Admin",
+# #             pin_hash=hash_pin("123456"),
+# #             role="system_admin",
+# #             is_active=True
+# #         )
+# #         session.add(system_admin)
+# #         await session.flush()
+# #         print(f"✅ System Admin created: +237690000000 / 123456")
+        
+# #         # ═══════════════════════════════════════════════════════════
+# #         # CREATE ZONAL ADMIN
+# #         # ═══════════════════════════════════════════════════════════
+        
+# #         zonal_admin = User(
+# #             phone="+237690100001",
+# #             name="Zonal Secretary : BLW Cameroon Zone B",
+# #             pin_hash=hash_pin("123456"),
+# #             role="zonal_admin",
+# #             zone_id=zone_b_id,
+# #             is_active=True
+# #         )
+# #         session.add(zonal_admin)
+# #         await session.flush()
+# #         print(f"✅ Zonal Admin created: +237690100001 / 123456")
+        
+# #         # ═══════════════════════════════════════════════════════════
+# #         # CREATE FELLOWSHIPS (9 total)
+# #         # ═══════════════════════════════════════════════════════════
+        
+# #         fellowships_data = [
+# #             ("BLW University Of Bamenda", "Bambili, North West Region"),
+# #             ("BLW National Polytechnic Yaounde", "Yaounde, Center Region"),
+# #             ("BLW Siantou", "Yaounde, Center Region"),
+# #             ("BLW University Of Dschang", "Dschang, West Region"),
+# #             ("BLW National Polytechnic Bamenda", "Bamenda, North West Region"),
+# #             ("CAR Mission", "Bangui, Central African Republic"),
+# #             ("Equatorial Guinea", "Malabo, Equatorial Guinea"),
+# #             ("Sao Tome Fellowship", "Sao Tome, Sao Tome & Principe"),
+# #             ("Libreville Extension", "Libreville, Gabon"),
+# #         ]
+        
+# #         fellowships = []
+# #         for i, (name, location) in enumerate(fellowships_data):
+# #             fellowship = Fellowship(
+# #                 name=name,
+# #                 location=location,
+# #                 zone_id=zone_b_id
+# #             )
+# #             session.add(fellowship)
+# #             await session.flush()
+# #             fellowships.append(fellowship)
+# #             print(f"  ✅ Fellowship {i+1}: {name}")
+        
+# #         # ═══════════════════════════════════════════════════════════
+# #         # CREATE FELLOWSHIP PASTORS (1 per fellowship)
+# #         # ═══════════════════════════════════════════════════════════
+        
+# #         pastor_names = [
+# #             "Pastor Stanley N",
+# #             "Pastor Nelson Yembe",
+# #             "Pastor David Siantou",
+# #             "Pastor Grace Dschang",
+# #             "Pastor Njini Rabiatu",
+# #             "Pastor Che Titus",
+# #             "Pastor Emmanuel Kevin",
+# #             "Pastor Rebecca Sao Tome",
+# #             "Pastor Michael Congo",
+# #         ]
+        
+# #         for i, (fellowship, pastor_name) in enumerate(zip(fellowships, pastor_names)):
+# #             pastor = User(
+# #                 phone=f"+237690200{i:03d}",
+# #                 name=pastor_name,
+# #                 pin_hash=hash_pin("123456"),
+# #                 role="fellowship_pastor",
+# #                 fellowship_id=fellowship.id,
+# #                 zone_id=zone_b_id,
+# #                 is_active=True
+# #             )
+# #             session.add(pastor)
+# #             print(f"  ✅ Pastor: {pastor_name}")
+        
+# #         await session.flush()
+        
+# #         # ═══════════════════════════════════════════════════════════
+# #         # CREATE SENIOR CELLS (2 per fellowship = 18 total, use 12 for MVP)
+# #         # ═══════════════════════════════════════════════════════════
+        
+# #         senior_cells = []
+# #         senior_cl_count = 0
+        
+# #         for fellowship in fellowships[:6]:  # First 6 fellowships (12 senior cells)
+# #             for j in range(2):
+# #                 division = chr(65 + j)  # A, B
+# #                 senior_cell = SeniorCell(
+# #                     name=f"{fellowship.name} - Division {division}",
+# #                     fellowship_id=fellowship.id
+# #                 )
+# #                 session.add(senior_cell)
+# #                 await session.flush()
+# #                 senior_cells.append(senior_cell)
+                
+# #                 # Create senior cell leader
+# #                 senior_cl_count += 1
+# #                 senior_cl = User(
+# #                     phone=f"+237690300{senior_cl_count:03d}",
+# #                     name=f"Elder {chr(64 + senior_cl_count)} - {senior_cell.name}",
+# #                     pin_hash=hash_pin("123456"),
+# #                     role="senior_cell_leader",
+# #                     senior_cell_id=senior_cell.id,
+# #                     fellowship_id=fellowship.id,
+# #                     zone_id=zone_b_id,
+# #                     is_active=True
+# #                 )
+# #                 session.add(senior_cl)
+# #                 print(f"  ✅ Senior Cell: {senior_cell.name}")
+        
+# #         await session.flush()
+# #         print(f"✅ {len(senior_cells)} Senior Cells + {senior_cl_count} Leaders created")
+        
+# #         # ═══════════════════════════════════════════════════════════
+# #         # CREATE CELLS (6 per senior cell = 72 total)
+# #         # ═══════════════════════════════════════════════════════════
+        
+# #         cells = []
+# #         cell_leader_count = 0
+        
+# #         for senior_cell in senior_cells:
+# #             for cell_num in range(1, 7):  # 6 cells per senior cell
+# #                 cell = Cell(
+# #                     name=f"{senior_cell.name} - Cell {cell_num}",
+# #                     senior_cell_id=senior_cell.id,
+# #                     default_meeting_day=["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][cell_num - 1],
+# #                     meeting_time=None  # Set later if needed
+# #                 )
+# #                 session.add(cell)
+# #                 await session.flush()
+# #                 cells.append(cell)
+                
+# #                 # Create cell leader
+# #                 cell_leader_count += 1
+# #                 cell_leader = User(
+# #                     phone=f"+237690400{cell_leader_count:03d}",
+# #                     name=f"Brother/Sister {cell_leader_count} - {cell.name}",
+# #                     pin_hash=hash_pin("123456"),
+# #                     role="cell_leader",
+# #                     cell_id=cell.id,
+# #                     senior_cell_id=senior_cell.id,
+# #                     fellowship_id=senior_cell.fellowship_id,
+# #                     zone_id=zone_b_id,
+# #                     is_active=True
+# #                 )
+# #                 session.add(cell_leader)
+        
+# #         await session.flush()
+# #         print(f"✅ {len(cells)} Cells + {cell_leader_count} Cell Leaders created")
+        
+# #         # ═══════════════════════════════════════════════════════════
+# #         # CREATE SAMPLE REPORTS (Submit reports for some cells)
+# #         # ═══════════════════════════════════════════════════════════
+        
+# #         # Submit reports for first 30 cells
+# #         report_count = 0
+        
+# #         for i, cell in enumerate(cells[:30]):
+# #             # Get cell leader
+# #             result = await session.execute(
+# #                 __import__('sqlalchemy').select(User).where(User.cell_id == cell.id)
+# #             )
+# #             cell_leader = result.scalar_one()
+            
+# #             # Create report for last Sunday
+# #             meeting_date = date.today() - timedelta(days=date.today().weekday() + 1)
+# #             week_start = meeting_date - timedelta(days=meeting_date.weekday())
+# #             week_end = week_start + timedelta(days=6)
+# #             submission_deadline = datetime.combine(week_end, __import__('datetime').time(9, 0, 0))
+            
+# #             report = CellReport(
+# #                 cell_id=cell.id,
+# #                 submitted_by_id=cell_leader.id,
+# #                 meeting_date=meeting_date,
+# #                 week_start_date=week_start,
+# #                 week_end_date=week_end,
+# #                 actual_meeting_day="sunday",
+# #                 submission_deadline=submission_deadline,
+# #                 status="submitted",
+# #                 submitted_at=datetime.utcnow(),
+# #                 meeting_type="Bible Study",
+# #                 meeting_duration=90,
+# #                 total_attendance=20 + (i % 30),
+# #                 first_timers=i % 5,
+# #                 number_saved=i % 3,
+# #                 filled_holy_ghost=i % 2,
+# #                 new_members=i % 2,
+# #                 souls_retained=i % 4,
+# #                 souls_won=i % 3,
+# #                 souls_on_tracker=5 + (i % 10),
+# #                 finance_oblation=5000,
+# #                 finance_offerings=3000,
+# #                 finance_tithes=8000,
+# #                 finance_thanksgiving=2000,
+# #                 finance_seed=1000,
+# #                 finance_partnership=0,
+# #                 finance_first_fruits=0,
+# #                 finance_total=19000,
+# #                 testimonies=f"Cell {i} witnessed {i % 3} souls won this week!",
+# #                 challenges="None major",
+# #                 pastors_remarks="Good work team"
+# #             )
+# #             session.add(report)
+# #             report_count += 1
+        
+# #         await session.flush()
+# #         print(f"✅ {report_count} Sample reports created")
+        
+# #         # ═══════════════════════════════════════════════════════════
+# #         # COMMIT ALL
+# #         # ═══════════════════════════════════════════════════════════
+        
+# #         await session.commit()
+        
+# #         print("\n" + "="*60)
+# #         print("🎉 DATABASE SEEDING COMPLETE!")
+# #         print("="*60)
+# #         print("\n📊 SUMMARY:")
+# #         print(f"  Zones:           1 (Zone B)")
+# #         print(f"  Fellowships:     {len(fellowships)}")
+# #         print(f"  Senior Cells:    {len(senior_cells)}")
+# #         print(f"  Cells:           {len(cells)}")
+# #         print(f"  Users:           {1 + 1 + len(fellowships) + len(senior_cells) + len(cells)} total")
+# #         print(f"    - System Admin:        1")
+# #         print(f"    - Zonal Admins:        1")
+# #         print(f"    - Fellowship Pastors:  {len(fellowships)}")
+# #         print(f"    - Senior Cell Leaders: {len(senior_cells)}")
+# #         print(f"    - Cell Leaders:        {len(cells)}")
+# #         print(f"  Reports:         {report_count} sample")
+        
+# #         print("\n📱 TEST CREDENTIALS:")
+# #         print(f"  System Admin:    +237690000000 / 123456")
+# #         print(f"  Zonal Admin:     +237690100001 / 123456")
+# #         print(f"  Fellowship Pastor: +237690200000 / 123456 (any pastor)")
+# #         print(f"  Senior Cell Leader: +237690300001 / 123456 (any senior CL)")
+# #         print(f"  Cell Leader:     +237690400001 / 123456 (any cell leader)")
+        
+# #         print("\n🔗 Ready to test at: http://localhost:8000/docs")
+
+
+# # if __name__ == "__main__":
+# #     asyncio.run(seed_database())
