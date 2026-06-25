@@ -137,6 +137,13 @@ async def health_check():
 # INCLUDE ROUTERS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
+from routers.public import router as public_router
+ 
+app.include_router(public_router)   
+
+
+
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
 app.include_router(admin.router, prefix="/api", tags=["Admin"])
 app.include_router(reports.router, prefix="/api", tags=["Reports"])
